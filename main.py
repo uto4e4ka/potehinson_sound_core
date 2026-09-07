@@ -1,17 +1,26 @@
 import asyncio
+from typing import cast, Awaitable
 
-from potehinsonnet.monitoring.health import Health
-from potehinsonnet.monitoring.health import NatsClient
+from potehinsonnet.net_models.discord_models import Command
 
-from potehinson_sound_core import user_interaction
-from potehinson_sound_core.core import Core
-from potehinson_sound_core.user_interaction import UserInteraction
+from containers.SoundCoreContainer import SoundCoreContainer
+from potehinsonnet.steup.command_registrator import CommandRegistrator
+from dotenv import load_dotenv
+load_dotenv()
+
+
 async def main():
-    nats_client = NatsClient()
-    await nats_client.connect()
-    health = Health(nats_client,"potehinson_sound_core")
-    core = Core(nats_client)
-    user_interaction = UserInteraction(core,nats_client)
-    await user_interaction.start()
+
+    sound_core_container = SoundCoreContainer()
+    sound_core_container.config.plugin.name.from_value("potehinson_sound_core")
+    sound_core_container.config.plugin.label.from_value("potehinson_discord_core")
+    sound_core_container.config.is_greeting.from_env("GREETING")
+    sound_core_container.config.greeting_sound.from_env("GREETING_SOUND")
+    await sound_core_container.init_resources()
+
+
+
+
+
     await asyncio.Event().wait()
 asyncio.run(main())

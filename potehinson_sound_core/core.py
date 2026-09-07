@@ -13,8 +13,8 @@ MOVE = VoiceChannelUserConnectionType.MOVE
 
 
 class Core:
-    def __init__(self,client:NatsClient):
-        self.nats_client = client
+    def __init__(self,nats_client:NatsClient):
+        self.nats_client = nats_client
         self.bot_state = DISCONNECTED
         self.bot_connected = asyncio.Event()
 
