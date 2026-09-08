@@ -3,7 +3,8 @@ from typing import AsyncGenerator
 
 from dependency_injector import containers,providers
 from dependency_injector.providers import Singleton
-from potehinsonnet.containers.NatsContainer import NatsContainer
+from potehinsonnet.containers.nats_container import NatsContainer
+from potehinsonnet.monitoring.health import Health
 from potehinsonnet.net import NatsClient
 from potehinsonnet.steup import command_registrator
 
@@ -26,9 +27,14 @@ async def _init_user_interaction(
     finally:
         await interaction.stop()
 
-async def _init_command_registrator(command_registrator: command_registrator.CommandRegistrator,core:Core) -> AsyncGenerator[CommandInstaller, None]:
+async def _init_command_registrator(
+        command_registrator: command_registrator.CommandRegistrator,
+        core:Core,
+        health:Health,
+) -> AsyncGenerator[CommandInstaller, None]:
     installer = CommandInstaller(command_registrator,core)
-    await installer.start()
+    await health.add_listener(installer.start)
+
     try:
         yield installer
     finally:
@@ -53,4 +59,5 @@ class SoundCoreContainer(containers.DeclarativeContainer):
     command_registrator:providers.Resource[CommandInstaller]= providers.Resource(_init_command_registrator,
                                                                                  command_registrator = nats_container.command_registrator,
                                                                                  core=core,
+                                                                                 health = nats_container.health,
                                                                                  )

@@ -23,7 +23,7 @@ class UserInteraction:
 
 
     async def stop(self):
-        self.sub.unsubscribe()
+        await self.sub.unsubscribe()
 
     async def on_connect_event(self,body:dict):
         event = VoiceChannelUserConnectionEvent.model_validate(body)
