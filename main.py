@@ -13,7 +13,7 @@ async def main():
 
     sound_core_container = SoundCoreContainer()
     sound_core_container.config.plugin.name.from_value("potehinson_sound_core")
-    sound_core_container.config.plugin.label.from_value("potehinson_discord_core")
+    sound_core_container.config.plugin.label.from_value("potehinson_sound_core")
     sound_core_container.config.is_greeting.from_env("GREETING")
     sound_core_container.config.greeting_sound.from_env("GREETING_SOUND")
     await sound_core_container.init_resources()
