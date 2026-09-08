@@ -3,6 +3,7 @@ from typing import AsyncGenerator
 
 from dependency_injector import containers,providers
 from dependency_injector.providers import Singleton
+from potehinsonnet import discord_provider
 from potehinsonnet.containers.nats_container import NatsContainer
 from potehinsonnet.monitoring.health import Health
 from potehinsonnet.net import NatsClient
@@ -31,10 +32,10 @@ async def _init_command_registrator(
         command_registrator: command_registrator.CommandRegistrator,
         core:Core,
         health:Health,
+        discord_provider: discord_provider.DiscordProvider,
 ) -> AsyncGenerator[CommandInstaller, None]:
-    installer = CommandInstaller(command_registrator,core)
+    installer = CommandInstaller(command_registrator,core,discord_provider)
     await health.add_listener(installer.start)
-
     try:
         yield installer
     finally:
@@ -60,4 +61,5 @@ class SoundCoreContainer(containers.DeclarativeContainer):
                                                                                  command_registrator = nats_container.command_registrator,
                                                                                  core=core,
                                                                                  health = nats_container.health,
+                                                                                 discord_provider = nats_container.discord_provider,
                                                                                  )
