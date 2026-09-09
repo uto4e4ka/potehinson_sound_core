@@ -35,8 +35,9 @@ async def _init_command_registrator(
         core:Core,
         health:Health,
         discord_provider: discord_provider.DiscordProvider,
+        greeting_repository: GreetingRepository
 ) -> AsyncGenerator[CommandInstaller, None]:
-    installer = CommandInstaller(command_registrator,core,discord_provider)
+    installer = CommandInstaller(command_registrator,core,discord_provider,greeting_repository)
     await health.add_listener(installer.start)
     try:
         yield installer
@@ -72,4 +73,5 @@ class SoundCoreContainer(containers.DeclarativeContainer):
                                                                                  core=core,
                                                                                  health = nats_container.health,
                                                                                  discord_provider = nats_container.discord_provider,
+                                                                                 greeting_repository=greeting_repository
                                                                                  )

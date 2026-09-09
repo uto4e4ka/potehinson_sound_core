@@ -27,7 +27,7 @@ class UserInteraction:
                 sound_url="test"
             )
         )
-        print(self.greeting_repository.get_greeting(user_id=2,guild_id=1).sound_url)
+        print(self.greeting_repository.get_greeting(user_id=2,guild_id=1))
         self.sub = await self.nats_client.subscribe("discord.interaction.channel.voice.event.user.connection",self.on_connect_event)
 
 
@@ -37,14 +37,22 @@ class UserInteraction:
     async def on_connect_event(self,body:dict):
         event = VoiceChannelUserConnectionEvent.model_validate(body)
         connection = await self.core.get_connection(event.guild.id)
-        if connection.playing:
-            return
         if event.user.is_bot:
             return
+        if connection.playing:
+            return
+        greeting = self.greeting_repository.get_greeting(
+            user_id= event.user.id,
+            guild_id=event.guild.id,
+        )
+        if  greeting.disabled:
+            return
+
+
         if event.action != VoiceChannelUserConnectionType.DISCONNECTED:
             if not self.is_greeting:
                 return
             async def on_ended():
                 await self.core.connect(event.after_channel.id,event.guild.id,InteractionType.DISCONNECT)
-            await self.core.play_sound(self.greeting_sound,event.after_channel.id,event.guild.id,on_ended)
+            await self.core.play_sound(greeting.sound_url,event.after_channel.id,event.guild.id,on_ended)
             print(f"▶️ Playing music for {event.user.name} ({event.user.id}) at server {event.guild.name} ({event.guild.id})")
