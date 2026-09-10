@@ -1,7 +1,8 @@
 from typing import Callable, Awaitable
 
 from potehinsonnet.discord_provider import DiscordProvider
-from potehinsonnet.net_models.discord_models import Command, CommandArgument, ExecutedCommand
+from potehinsonnet.net_models.discord_models import Command, CommandArgument, ExecutedCommand, EmbedImage, \
+    EmbedThumbnail
 from potehinsonnet.net_models.discord_models import ExecutedCommandResponse, Embed, EmbedField
 from potehinsonnet.net_models.discord_models import  EmbedAuthor, EmbedFooter
 from potehinsonnet.setup.command_registrator import CommandRegistrator
@@ -16,6 +17,7 @@ class CommandInstaller:
         self.core = core
         self.discord_provider = discord_provider
         self.greeting_repository = greeting_repository
+
 
     def _get_arg_value(self, command: ExecutedCommand, arg_name: str) -> str | None:
         """Вспомогательный метод для безопасного извлечения аргумента по имени."""
@@ -63,11 +65,20 @@ class CommandInstaller:
                     description="Description",
                     color=0xFF69B4,
                     url="https://penis.com",
+                    image=EmbedImage(
+                        url = "https://avatars.yandex.net/get-music-content/20622967/10e341a4.a.43788606-2/50x50",
+                        height=50,
+                        width=50
+                    ),
                     author=EmbedAuthor(
                         name="Author",
+                        icon_url="https://avatars.yandex.net/get-music-content/20622967/10e341a4.a.43788606-2/50x50"
                     ),
                     footer=EmbedFooter(
                         text="Footer",
+                    ),
+                    thumbnail=EmbedThumbnail(
+                        url="https://avatars.yandex.net/get-music-content/20622967/10e341a4.a.43788606-2/50x50"
                     ),
                     fields=[
                         EmbedField(
@@ -124,12 +135,26 @@ class CommandInstaller:
         return ExecutedCommandResponse(
             message=f"Изменено состояние greeting.disabled {old}->{disabled} для <@{user_id}>",
         )
+    async def _handle_ask(self,command: ExecutedCommand) -> ExecutedCommandResponse:
+        if not command.user.voice_channel:
+            return ExecutedCommandResponse(
+                message="❌Нужно находится в голосовом канале"
+            )
+        text = self._get_arg_value(command, "text") or ""
+        await self.core.play_sound(
+            url=f"http://localhost:8000/tts?text={text}&voice=ru-RU-DmitryNeural",
+            channel_id=command.user.voice_channel.id,
+            guild_id=command.guild.id,
+        )
+        return ExecutedCommandResponse(
+            message="▶️ Начинаю говорить"
+        )
     def get_commands(self) -> list[tuple[Command, Callable[[ExecutedCommand], Awaitable[ExecutedCommandResponse]]]]:
         """Возвращает список пар (Command, Handler) для регистрации."""
         play_channel_command = Command(
             name="play_channel",
             description="Проиграть в канале",
-            tag="play",
+            tag="play_channel",
             service=self.command_registrator.plugin_name,
             args=[
                 CommandArgument(
@@ -163,9 +188,10 @@ class CommandInstaller:
         )
 
         add_binding = Command(
-            name="add greeting",
+            name="add",
             description="Добавить приветствие для пользователя",
             tag="add_greeting",
+            group="greeting",
             service=self.command_registrator.plugin_name,
             args=[
                 CommandArgument(
@@ -184,9 +210,26 @@ class CommandInstaller:
         )
 
         remove_binding = Command(
-            name="remove greeting",
+            name="remove",
             description="Удалить приветствие для пользователя",
             tag="remove_greeting",
+            group="greeting",
+            service=self.command_registrator.plugin_name,
+            args=[
+                CommandArgument(
+                    name="user",
+                    required=True,
+                    type="user",
+                    description="Пользователь"
+                ),
+            ]
+        )
+        disable_greeting = Command(
+            name="disable",
+            description="Выключить/Включить приветствие пользователю",
+            tag="greeting_disable",
+            group="greeting",
+            permission="sound_core.disable",
             service=self.command_registrator.plugin_name,
             args=[
                 CommandArgument(
@@ -198,24 +241,23 @@ class CommandInstaller:
                 CommandArgument(
                     name="disabled",
                     required=True,
-                    type="user",
-                    description="ВЫ"
+                    type="bool",
+                    description="Выключить/Включить"
                 )
             ]
         )
-        disable_greeting = Command(
-            name="disable greeting",
-            description="Выключить/Включить приветствие пользователю",
-            tag="disable_greeting",
+        ask = Command(
+            name="say",
+            description="Сказать",
+            tag="ask",
             service=self.command_registrator.plugin_name,
             args=[
                 CommandArgument(
-                    name="user",
+                    name="text",
                     required=True,
-                    type="user",
-                    description="Пользователь"
+                    type="text",
+                    description="Сообщение"
                 ),
-
             ]
         )
         # Возвращаем список кортежей (Команда, Функция-обработчик)
@@ -223,15 +265,18 @@ class CommandInstaller:
             (play_channel_command, self._handle_play_channel),
             (play_command, self._handle_play),
             (add_binding,self._handle_greeting_install),
-            (remove_binding,self._handle_greeting_delete)
+            (remove_binding,self._handle_greeting_delete),
+            (disable_greeting,self._handle_disable_greeting),
+            (ask, self._handle_ask),
         ]
 
     async def start(self, plugin) -> None:
-        for command, callback in self.get_commands():
-            await self.command_registrator.register_command(
-                command=command,
-                listener=callback,
-            )
+        try:
+           await self.command_registrator.register_command(self.get_commands())
+        except KeyError as e:
+            plugin(f"Error while registering command: . Skipping...")
 
     async def stop(self) -> None:
-        return
+        print("Removing commands...")
+        await self.command_registrator.unregister_command(self.get_commands())
+

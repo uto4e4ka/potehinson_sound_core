@@ -20,14 +20,6 @@ class UserInteraction:
         self.greeting_repository = greeting_repository
 
     async def start(self):
-        self.greeting_repository.set_greeting(
-            GreetingScenario(
-                user_id=2,
-                guild_id=1,
-                sound_url="test"
-            )
-        )
-        print(self.greeting_repository.get_greeting(user_id=2,guild_id=1))
         self.sub = await self.nats_client.subscribe("discord.interaction.channel.voice.event.user.connection",self.on_connect_event)
 
 

@@ -9,10 +9,11 @@ class GreetingScenario(BaseModel):
     guild_id: int
     sound_url: str
     disabled: bool = False
+    cooldown: Optional[int] = None
 
 
 class GreetingRepository:
-    def __init__(self, json_path: str, default_sound_url: str = "media/sounds/default.mp3"):
+    def __init__(self, json_path: str, default_sound_url: str = "sounds/audio.mp3"):
         print(json_path)
         self.json_path = Path(json_path)
         self.default_sound_url = default_sound_url
@@ -36,7 +37,10 @@ class GreetingRepository:
         """Удаляет приветствие"""
         data = self._load_data()
         key = self._make_key(guild_id, user_id)
-        return GreetingScenario.model_validate(data.pop(key))
+        ret_data = GreetingScenario.model_validate(data.pop(key))
+        with open(self.json_path, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+        return ret_data
 
     def set_greeting(self, scenario: GreetingScenario) -> GreetingScenario:
         """Сохраняет или обновляет звук для пользователя."""
