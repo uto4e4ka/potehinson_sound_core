@@ -1,0 +1,34 @@
+{
+  "1:2": {
+    "user_id": 2,
+    "guild_id": 1,
+    "sound_url": "test",
+    "disabled": false
+  },
+  "1378803112348745859:520911802653999104": {
+    "user_id": 520911802653999104,
+    "guild_id": 1378803112348745859,
+    "sound_url": "sounds/maksim.mp3",
+    "disabled": false
+  },
+  "1378803112348745859:450601856440467488": {
+    "user_id": 450601856440467488,
+    "guild_id": 1378803112348745859,
+    "sound_url": "sounds/audio.mp3",
+    "disabled": false,
+    "cooldown": null
+  },
+  "1378803112348745859:898118715114131467": {
+    "user_id": 898118715114131467,
+    "guild_id": 1378803112348745859,
+    "sound_url": "sounds/audio.mp3",
+    "disabled": true
+  },
+  "1378803112348745859:1544062337965883522": {
+    "user_id": 1544062337965883522,
+    "guild_id": 1378803112348745859,
+    "sound_url": "sounds/audio.mp3",
+    "disabled": true,
+    "cooldown": null
+  }
+}

@@ -1,0 +1,208 @@
+import re
+from typing import List
+
+from integrations.music_models import (
+    MusicAttributes,
+    MusicSource,
+    Music,
+    MusicAuthor,
+    MusicAlbum, MusicQueueItem
+)
+from yandex_music import Client
+
+
+class YandexResolver:
+    def __init__(self, token: str):
+        self.token = token
+        self.client = Client(token=token).init()
+
+    def _get_artists_str(self, artists) -> str:
+        """Вспомогательный метод для корректной сборки имён артистов."""
+        if not artists:
+            return "Unknown"
+        return ", ".join(artist.name for artist in artists if artist.name)
+
+    def find_musics(self, url: str) -> list[MusicQueueItem]:
+        """Универсальный поиск треков по ссылке (трек, альбом, плейлист).
+
+        Возвращает список словарей:
+        [{'title': str, 'url': str, 'author': str}]
+        """
+        if "music.yandex.ru" not in url:
+            raise ValueError("Неподдерживаемый URL: адрес должен быть с music.yandex.ru")
+
+        results = []
+
+        # 1. Проверяем, является ли ссылка отдельным треком
+        track_match = re.search(r'track/(\d+)', url)
+        if track_match:
+            track_id = track_match.group(1)
+            tracks = self.client.tracks([track_id])
+            if tracks:
+                track = tracks[0]
+                results.append(MusicQueueItem(
+                    music=Music(
+                        name=track.title or "Unknown",
+                        url=f"https://music.yandex.ru/album/{track.albums[0].id if track.albums else '0'}/track/{track.id}",
+
+                    )
+                )
+                )
+            return results
+
+        # 2. Проверяем, является ли ссылка альбомом
+        album_match = re.search(r'album/(\d+)', url)
+        if album_match and "track" not in url:
+            album_id = album_match.group(1)
+            album = self.client.albums_with_tracks(album_id)
+
+            if album and album.volumes:
+                for volume in album.volumes:
+                    for track in volume:
+                        results.append(MusicQueueItem(
+                            music=Music(
+                                name=track.title or "Unknown",
+                                url=f"https://music.yandex.ru/album/{album_id}/track/{track.id}",
+
+                            )
+                        )
+                        )
+            return results
+
+        # 3. Проверяем, является ли ссылка плейлистом
+        playlist_match = re.search(r'(?:users/([^/]+)/)?playlists/([\w-]+)', url)
+        if playlist_match:
+            user_id = playlist_match.group(1)
+            playlist_id = playlist_match.group(2)
+
+            if user_id and playlist_id.isdigit():
+                playlist = self.client.users_playlists(playlist_id, user_id)
+            else:
+                playlist = self.client.playlist(playlist_id)
+
+            if playlist and playlist.tracks:
+                for track_short in playlist.tracks:
+                    track = track_short.track
+                    if not track:
+                        continue
+
+                    album_id = track.albums[0].id if track.albums else "0"
+                    results.append(MusicQueueItem(
+                        music=Music(
+                            name=track.title or "Unknown",
+                            url=f"https://music.yandex.ru/album/{album_id}/track/{track.id}",
+
+                        )
+                    ))
+            return results
+
+        raise ValueError("Не удалось распознать тип ссылки (трек, альбом или плейлист)")
+
+    def _build_music_attributes(self, track, page_url: str) -> MusicAttributes:
+        """Сборка объекта MusicAttributes из сущности Track."""
+        download_info = track.get_download_info()
+        direct_url = download_info[0].get_direct_link() if download_info else ""
+
+        album_title = track.albums[0].title if track.albums else None
+
+        return MusicAttributes(
+            source=MusicSource.YANDEX_MUSIC,
+            duration=(track.duration_ms or 0) / 1000,
+            music=Music(
+                name=track.title or "Unknown",
+                track_url=direct_url,
+                url=page_url,
+                icon_url=track.get_cover_url("100x100"),
+            ),
+            author=MusicAuthor(
+                name=self._get_artists_str(track.artists),
+            ),
+            album=MusicAlbum(
+                name=album_title
+            ),
+        )
+
+    def get_tracks_by_url(self, url: str) -> List[MusicAttributes]:
+        """Получает полный список моделей MusicAttributes по любой валидной ссылке."""
+        found_tracks = self.find_musics(url)
+        if not found_tracks:
+            return []
+
+        # Собираем все ID треков для получения данных единым батч-запросом
+        track_ids = []
+        for item in found_tracks:
+            match = re.search(r'track/(\d+)', item["url"])
+            if match:
+                track_ids.append(match.group(1))
+
+        if not track_ids:
+            return []
+
+        # Запрашиваем данные треков из Yandex API (до 1000 за раз)
+        tracks = self.client.tracks(track_ids)
+        result_list = []
+
+        for track, item_info in zip(tracks, found_tracks):
+            attributes = self._build_music_attributes(track, item_info["url"])
+            result_list.append(attributes)
+
+        return result_list
+
+    def get_track_by_url(self, url):
+
+        if "music.yandex.ru" not in url:
+
+            raise FileNotFoundError("Не поддерживаемый url")
+
+        match = re.search(r'track/(\d+)', url)
+
+        if not match:
+
+            raise FileNotFoundError("Не поддерживаемый url")
+
+        track_id = match.group(1)
+
+        track = self.client.tracks([track_id])[0]
+
+        print(track.get_cover_url("50x50"))
+
+        print(f"Загружен трек: {track.title}")
+
+    # Получаем ссылку на поток
+
+        direct_url = track.get_download_info()[0].get_direct_link()
+
+        print(direct_url)
+
+        music_attributes = MusicAttributes(
+
+            source=MusicSource.YANDEX_MUSIC,
+
+            duration=track.duration_ms / 1000,
+
+            music=Music(
+
+                name=track.title or "Unknown",
+
+                track_url=direct_url,
+
+                url=url,
+
+                icon_url=track.get_cover_url("100x100"),
+
+            ),
+
+            author=MusicAuthor(
+
+                name="".join(artist.name or "" for artist in track.artists),
+
+            ),
+
+            album=MusicAlbum(
+
+            ),
+
+        )
+
+        return music_attributes
+

@@ -6,6 +6,8 @@ from potehinsonnet.net_models.discord_models import Command
 from containers.SoundCoreContainer import SoundCoreContainer
 from importlib.metadata import version
 from dotenv import load_dotenv
+import uvicorn
+
 load_dotenv()
 
 
@@ -24,6 +26,11 @@ async def main():
     sound_core_container.config.plugin.site.from_value("https://potehinson-sound-core")
     sound_core_container.config.is_greeting.from_env("GREETING")
     sound_core_container.config.greeting_sound.from_env("GREETING_SOUND")
+    sound_core_container.wire(modules=[__name__])
+    app = sound_core_container.app()
+    config = uvicorn.Config(app=app, host="0.0.0.0", port=8000)
+    server = uvicorn.Server(config)
+    asyncio.create_task(server.serve())
     await sound_core_container.init_resources()
 
     try:
@@ -31,6 +38,9 @@ async def main():
     finally:
         print("Shutting down")
         await sound_core_container.shutdown_resources()
+
+
+
 
 
 

@@ -3,12 +3,15 @@ from typing import AsyncGenerator
 
 from dependency_injector import containers,providers
 from dependency_injector.providers import Singleton
+from fastapi import FastAPI
 from potehinsonnet import discord_provider
 from potehinsonnet.containers.nats_container import NatsContainer
 from potehinsonnet.monitoring.health import Health
 from potehinsonnet.net import NatsClient
-from potehinsonnet.steup import command_registrator
+from potehinsonnet.setup import command_registrator
 
+from integrations.edge_tts_generator import TTSService
+from integrations.tts_server import create_app
 from potehinson_sound_core.command_installer import CommandInstaller
 from potehinson_sound_core.core import Core
 from potehinson_sound_core.user_interaction import UserInteraction
@@ -75,3 +78,7 @@ class SoundCoreContainer(containers.DeclarativeContainer):
                                                                                  discord_provider = nats_container.discord_provider,
                                                                                  greeting_repository=greeting_repository
                                                                                  )
+    tts_service: Singleton[TTSService] = providers.Singleton(TTSService)
+
+    app: providers.Factory[FastAPI] = providers.Factory(create_app,
+                                                        tts_service=tts_service,)
