@@ -13,6 +13,7 @@ dependencies = [
     "mutagen>=1.48.1,<2.0.0",
     "yandex-music (>=3.0.0,<4.0.0)",
     "pillow (>=12.3.0,<13.0.0)",
+    "loguru (>=0.7.3,<0.8.0)",
 ]
 
 [build-system]

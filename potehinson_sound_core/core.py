@@ -8,6 +8,7 @@ from potehinsonnet.net_models.discord_models import InteractionType, VoiceChanne
 from potehinsonnet.net import NatsClient
 import uuid
 
+from exeptions.BotBeasyException import BotBeasyException
 from exeptions.playing_execptions import PlayingException
 
 CONNECTED = VoiceChannelUserConnectionType.CONNECTED
@@ -35,22 +36,33 @@ class Core:
         ).model_dump(mode="json"))
         return VoiceConnectionStatus.model_validate(status)
 
+    async def check_and_connect(self,channel_id:int,guild_id:int,force:bool)-> VoiceConnectionStatus:
+        connection = await self.get_connection(guild_id)
+        if not connection.connected:
+           return await self.connect(channel_id,guild_id)
+        else:
+            if connection.channel.id != channel_id:
+                if force:
+                    return await self.connect(channel_id,guild_id)
+                else:
+                    raise BotBeasyException()
+        return connection
+
     async def play_sound(self,
                 url:str,
-                channel_id:int,
                 guild_id:int,
                 on_ended: Callable[[], Awaitable[None]] | None = None
                          ):
         track_id = str(uuid.uuid4())
         status = await self.get_connection(guild_id)
-        if not status.connected or status.channel.id != channel_id:
-            await self.connect(channel_id,guild_id)
+        # if not status.connected or status.channel.id != channel_id:
+        #     await self.connect(channel_id,guild_id)
         response = await self.nats_client.request(
             "discord.interaction.channel.voice.actions.play_sound",
             VoiceChannelPlaySound(
                 sound=url,
                 track_id=track_id,
-                channel = Channel(id= channel_id,name=""),
+                channel = Channel(id= 0,name=""),
                 guild = Guild(id= guild_id,name="")
             ).model_dump(mode="json"))
         response = VoicePlayingCallback.model_validate(response)

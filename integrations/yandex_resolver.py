@@ -1,6 +1,9 @@
 import re
 from typing import List
 
+from pydantic import BaseModel
+
+from integrations.music_embeds import MusicAddMessage, AddingType
 from integrations.music_models import (
     MusicAttributes,
     MusicSource,
@@ -10,6 +13,12 @@ from integrations.music_models import (
 )
 from yandex_music import Client
 
+class YandexLink(BaseModel):
+    type: AddingType
+    track_id: str| None = None
+    user_id: str|None = None
+    playlist_id: str|None = None
+    album_id: str|None = None
 
 class YandexResolver:
     def __init__(self, token: str):
@@ -22,7 +31,7 @@ class YandexResolver:
             return "Unknown"
         return ", ".join(artist.name for artist in artists if artist.name)
 
-    def find_musics(self, url: str) -> list[MusicQueueItem]:
+    def find_musics(self, url: str) -> MusicAddMessage:
         """Универсальный поиск треков по ссылке (трек, альбом, плейлист).
 
         Возвращает список словарей:
@@ -31,72 +40,130 @@ class YandexResolver:
         if "music.yandex.ru" not in url:
             raise ValueError("Неподдерживаемый URL: адрес должен быть с music.yandex.ru")
 
-        results = []
-
+        link = self._parse_url(url)
         # 1. Проверяем, является ли ссылка отдельным треком
-        track_match = re.search(r'track/(\d+)', url)
-        if track_match:
-            track_id = track_match.group(1)
-            tracks = self.client.tracks([track_id])
-            if tracks:
-                track = tracks[0]
-                results.append(MusicQueueItem(
-                    music=Music(
-                        name=track.title or "Unknown",
-                        url=f"https://music.yandex.ru/album/{track.albums[0].id if track.albums else '0'}/track/{track.id}",
+        if link.type == AddingType.TRACK:
+            return self._find_track(url,link.track_id)
+        elif link.type == AddingType.ALBUM:
+            return self._find_album(url,link.album_id)
+        elif link.type == AddingType.PLAYLIST:
+            return self._find_playlist(url,link.playlist_id,link.user_id)
+        else:
+            raise ValueError("Не удалось распознать тип ссылки (трек, альбом или плейлист)")
 
-                    )
-                )
-                )
-            return results
+    def _find_track(self,url:str,track_id:str)->MusicAddMessage:
+        results = []
+        tracks = self.client.tracks([track_id])
+        if not tracks:
+            raise FileNotFoundError("Трек не найден")
+        track = tracks[0]
+        results.append(MusicQueueItem(
+            music=Music(
+                name=track.title or "Unknown",
+                url=f"https://music.yandex.ru/album/{track.albums[0].id if track.albums else '0'}/track/{track.id}",
 
-        # 2. Проверяем, является ли ссылка альбомом
-        album_match = re.search(r'album/(\d+)', url)
-        if album_match and "track" not in url:
-            album_id = album_match.group(1)
-            album = self.client.albums_with_tracks(album_id)
+            )
+        )
+        )
+        return MusicAddMessage(
+            add_type=AddingType.TRACK,
+            source=MusicSource.YANDEX_MUSIC,
+            name=track.title or "Unknown",
+            count=len(results),
+            icon_url=track.getCoverUrl(size="150x150"),
+            music_list=results
+        )
 
-            if album and album.volumes:
-                for volume in album.volumes:
-                    for track in volume:
-                        results.append(MusicQueueItem(
-                            music=Music(
-                                name=track.title or "Unknown",
-                                url=f"https://music.yandex.ru/album/{album_id}/track/{track.id}",
-
-                            )
-                        )
-                        )
-            return results
-
-        # 3. Проверяем, является ли ссылка плейлистом
-        playlist_match = re.search(r'(?:users/([^/]+)/)?playlists/([\w-]+)', url)
-        if playlist_match:
-            user_id = playlist_match.group(1)
-            playlist_id = playlist_match.group(2)
-
-            if user_id and playlist_id.isdigit():
-                playlist = self.client.users_playlists(playlist_id, user_id)
-            else:
-                playlist = self.client.playlist(playlist_id)
-
-            if playlist and playlist.tracks:
-                for track_short in playlist.tracks:
-                    track = track_short.track
-                    if not track:
-                        continue
-
-                    album_id = track.albums[0].id if track.albums else "0"
+    def _find_album(self,url:str,album_id:str)->MusicAddMessage:
+        album = self.client.albums_with_tracks(album_id)
+        results = []
+        if album and album.volumes:
+            for volume in album.volumes:
+                for track in volume:
                     results.append(MusicQueueItem(
                         music=Music(
                             name=track.title or "Unknown",
                             url=f"https://music.yandex.ru/album/{album_id}/track/{track.id}",
 
                         )
-                    ))
-            return results
+                    )
+                    )
+            return MusicAddMessage(
+                music_list= results,
+                name=album.title or "Unknown",
+                count=len(results),
+                source=MusicSource.YANDEX_MUSIC,
+                add_type=AddingType.ALBUM,
+                icon_url=album.get_og_image_url(size="150x150"),
+                url=url
+            )
+        raise FileNotFoundError("Альбом не найден")
 
-        raise ValueError("Не удалось распознать тип ссылки (трек, альбом или плейлист)")
+    def _find_playlist(self,url:str,playlist_id:str,user_id:str)->MusicAddMessage:
+        results = []
+        if user_id and playlist_id.isdigit():
+            playlist = self.client.users_playlists(playlist_id, user_id)
+        else:
+            playlist = self.client.playlist(playlist_id)
+
+        if playlist and playlist.tracks:
+            for track_short in playlist.tracks:
+                track = track_short.track
+                if not track:
+                    continue
+
+                album_id = track.albums[0].id if track.albums else "0"
+                results.append(MusicQueueItem(
+                    music=Music(
+                        name=track.title or "Unknown",
+                        url=f"https://music.yandex.ru/album/{album_id}/track/{track.id}",
+
+                    )
+                ))
+            return MusicAddMessage(
+                music_list= results,
+                name=playlist.title or "Unknown",
+                count=len(results),
+                source=MusicSource.YANDEX_MUSIC,
+                add_type=AddingType.PLAYLIST,
+                icon_url=playlist.cover.get_url(size="150x150"),
+                url=url
+            )
+        raise FileNotFoundError("Плейлист не найден")
+
+    def _parse_url(self, url: str) -> YandexLink:
+        """Определяет тип ссылки Yandex Music и извлекает ID сущностей."""
+        if "music.yandex.ru" not in url:
+            raise ValueError(
+                "Неподдерживаемый URL: адрес должен быть с music.yandex.ru"
+            )
+
+        # 1. Трек
+        track_match = re.search(r"track/(\d+)", url)
+        if track_match:
+            return YandexLink(
+                type=AddingType.TRACK, track_id=track_match.group(1)
+            )
+
+        # 2. Альбом
+        album_match = re.search(r"album/(\d+)", url)
+        if album_match and "track" not in url:
+            return YandexLink(
+                type=AddingType.ALBUM, album_id=album_match.group(1)
+            )
+
+        # 3. Плейлист
+        playlist_match = re.search(r"(?:users/([^/]+)/)?playlists/([\w-]+)", url)
+        if playlist_match:
+            return YandexLink(
+                type=AddingType.PLAYLIST,
+                user_id=playlist_match.group(1),
+                playlist_id=playlist_match.group(2),
+            )
+
+        raise ValueError(
+            "Не удалось распознать тип ссылки (трек, альбом или плейлист)"
+        )
 
     def _build_music_attributes(self, track, page_url: str) -> MusicAttributes:
         """Сборка объекта MusicAttributes из сущности Track."""

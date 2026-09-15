@@ -1,0 +1,2 @@
+class BotBeasyException(Exception):
+    pass

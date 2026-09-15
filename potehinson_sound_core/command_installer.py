@@ -1,28 +1,21 @@
-import asyncio
-from typing import Callable, Awaitable, Optional
-from integrations import yandex_resolver
+from typing import Callable, Awaitable
+from integrations import music_fetcher
 
 from potehinsonnet.discord_provider import DiscordProvider
 from potehinsonnet.net_models.discord_models import (
     Command,
     CommandArgument,
     ExecutedCommand,
-    EmbedImage,
-    EmbedThumbnail,
     NatsMessage,
-    DiscordMessageRemove,
     DiscordMessageResponse,
     ExecutedCommandResponse,
-    Embed,
-    EmbedField,
-    EmbedAuthor,
-    EmbedFooter,
 )
 from potehinsonnet.setup.command_registrator import CommandRegistrator
 
 from exeptions.playing_execptions import PlayingException
-from integrations.music_models import MusicQueueItem, MusicAttributes
-from potehinson_sound_core import sound_classificator, music_player
+from integrations.music_embeds import get_music_embed
+from integrations.music_models import MusicAttributes
+from potehinson_sound_core import music_player
 from potehinson_sound_core.core import Core
 from scenaries.greeting_repository import GreetingRepository, GreetingScenario
 
@@ -79,7 +72,7 @@ class CommandInstaller:
 
     async def _handle_play_channel(
         self, command: ExecutedCommand
-    ) -> ExecutedCommandResponse:
+    ):
         """Отдельный обработчик для команды play_channel."""
         channel_id = self._get_arg_value(command, "voice_channel")
         url = self._get_arg_value(command, "url")
@@ -91,14 +84,13 @@ class CommandInstaller:
 
         await self.core.play_sound(
             url=url,
-            channel_id=int(channel_id),
             guild_id=command.guild.id,
         )
-        return ExecutedCommandResponse(
+        await self.command_registrator.reply(command.entity_id, ExecutedCommandResponse(
             message=f"Воспроизведение {url} в канале <#{channel_id}> началось.",
             ephemeral=True,
             is_final=True,
-        )
+        ))
 
     async def _on_music_change(
         self, guild_id: int, text_channel_id: int, item: MusicAttributes
@@ -111,7 +103,7 @@ class CommandInstaller:
             raw_response = await self.discord_provider.send_message(
                 NatsMessage(
                     text="",
-                    embeds=[await sound_classificator.get_music_embed(item)],
+                    embeds=[await get_music_embed(item)],
                     service="",
                     channel_id=text_channel_id,
                 )
@@ -140,7 +132,7 @@ class CommandInstaller:
 
     async def _handle_play(
         self, command: ExecutedCommand
-    ) -> ExecutedCommandResponse:
+    ):
         if not command.user or not command.user.voice_channel:
             await self.command_registrator.reply(command.entity_id,ExecutedCommandResponse(
                     message="❌ Нужно находиться в голосовом канале", is_final=True
@@ -148,35 +140,32 @@ class CommandInstaller:
             )
 
         url = self._get_arg_value(command, "url") or ""
+
+
         # if not url:
         #     return ExecutedCommandResponse(
         #         message="❌ Укажите ссылку на аудиозапись", is_final=True
         #     )
 
         try:
-            res_msg = await self.player.add_music(
-                url=url,
-                channel_id=command.user.voice_channel.id,
-                text_channel_id=command.channel.id,
-                guild_id=command.guild.id,
-            )
+            embed = await self.player.play_music_to_chanel(url,command.user.voice_channel.id,command.guild.id,command.channel.id)
             await self.command_registrator.reply(command.entity_id,ExecutedCommandResponse(
-                    message=f"✅ {res_msg}", is_final=True
+                    embeds= [embed], is_final=True
                 )
             )
-        except PlayingException as e:
+        except (PlayingException, FileNotFoundError) as e:
             await self.command_registrator.reply(command.entity_id, ExecutedCommandResponse(
                 message=f"❌ Ошибка воспроизведения: `{e}`", is_final=True
             )
                                                  )
 
-        return ExecutedCommandResponse(
+        await self.command_registrator.reply(command.entity_id, ExecutedCommandResponse(
                 message=f"❌ Непредвиденная ошибка:", is_final=True
-        )
+        ))
 
     async def _handle_greeting_install(
         self, command: ExecutedCommand
-    ) -> ExecutedCommandResponse:
+    ):
         url = self._get_arg_value(command, "url") or ""
         user_id = self._get_arg_value(command, "user") or ""
         try:
@@ -187,38 +176,37 @@ class CommandInstaller:
                     sound_url=url,
                 )
             )
-            return ExecutedCommandResponse(
+            await self.command_registrator.reply(command.entity_id, ExecutedCommandResponse(
                 message=f"Добавлено новое приветствие для <@{user_id}>",
                 is_final=True,
-            )
+            ))
         except FileNotFoundError:
-            return ExecutedCommandResponse(
-                message=f"Ошибка добавления приветствия для <@{user_id}>",
-                is_final=True,
-            )
+            await self.command_registrator.reply(command.entity_id, ExecutedCommandResponse(
+                message=f"Ошибка добавления приветствия для <@{user_id}>", is_final=True
+            ))
+
 
     async def _handle_greeting_delete(
         self, command: ExecutedCommand
-    ) -> ExecutedCommandResponse:
+    ):
         user_id = int(self._get_arg_value(command, "user") or "0")
         guild_id = command.guild.id
         try:
             self.greeting_repository.remove_greeting(
                 user_id=user_id, guild_id=guild_id
             )
-            return ExecutedCommandResponse(
-                message=f"Удалено приветствие у <@{user_id}>",
-                is_final=True,
-            )
+            await self.command_registrator.reply(command.entity_id, ExecutedCommandResponse(
+                message=f"Удалено приветствие у <@{user_id}>", is_final=True
+            ))
         except KeyError:
-            return ExecutedCommandResponse(
-                message=f"У <@{user_id}> не установлено приветствий",
-                is_final=True,
-            )
+            await self.command_registrator.reply(command.entity_id, ExecutedCommandResponse(
+                message=f"У <@{user_id}> не установлено приветствий", is_final=True
+            ))
+
 
     async def _handle_disable_greeting(
         self, command: ExecutedCommand
-    ) -> ExecutedCommandResponse:
+    ):
         user_id = int(self._get_arg_value(command, "user") or "0")
         guild_id = command.guild.id
         disabled = bool(self._get_bool_arg(command, "disabled"))
@@ -228,39 +216,38 @@ class CommandInstaller:
         old = greeting.disabled
         greeting.disabled = disabled
         self.greeting_repository.set_greeting(greeting)
-        return ExecutedCommandResponse(
-            message=f"Изменено состояние greeting.disabled {old}->{disabled} для <@{user_id}>",
-            is_final=True,
-        )
+        await self.command_registrator.reply(command.entity_id, ExecutedCommandResponse(
+            message=f"Изменено состояние greeting.disabled {old}->{disabled} для <@{user_id}>", is_final=True
+        ))
 
     async def _handle_ask(
         self, command: ExecutedCommand
-    ) -> ExecutedCommandResponse:
+    ):
         if not command.user or not command.user.voice_channel:
-            return ExecutedCommandResponse(
+            await self.command_registrator.reply(command.entity_id, ExecutedCommandResponse(
                 message="❌ Нужно находиться в голосовом канале", is_final=True
-            )
+            ))
         text = self._get_arg_value(command, "text") or ""
         try:
+            await self.core.check_and_connect(channel_id=command.user.voice_channel.id,force=True,guild_id=command.guild.id)
             await self.core.play_sound(
                 url=f"http://localhost:8000/tts?text={text}&voice=ru-RU-DmitryNeural",
-                channel_id=command.user.voice_channel.id,
                 guild_id=command.guild.id,
             )
-            return ExecutedCommandResponse(
+            await self.command_registrator.reply(command.entity_id, ExecutedCommandResponse(
                 message="▶️ Начинаю говорить", is_final=True
-            )
+            ))
         except PlayingException as e:
-            return ExecutedCommandResponse(
+            await self.command_registrator.reply(command.entity_id,ExecutedCommandResponse(
                 message=f"❌ Ошибка воспроизведения: `{e}`", is_final=True
-            )
+            ))
 
     def get_commands(
         self,
     ) -> list[
         tuple[
             Command,
-            Callable[[ExecutedCommand], Awaitable[ExecutedCommandResponse]],
+            Callable[[ExecutedCommand], Awaitable[None]],
         ]
     ]:
         """Возвращает список пар (Command, Handler) для регистрации."""
@@ -369,6 +356,7 @@ class CommandInstaller:
             description="Сказать",
             tag="ask",
             service=self.command_registrator.plugin_name,
+            permission="sound_core.say",
             args=[
                 CommandArgument(
                     name="text",
