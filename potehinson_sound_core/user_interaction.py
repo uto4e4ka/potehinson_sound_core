@@ -46,5 +46,6 @@ class UserInteraction:
                 return
             async def on_ended():
                 await self.core.connect(event.after_channel.id,event.guild.id,InteractionType.DISCONNECT)
-            await self.core.play_sound(greeting.sound_url,event.after_channel.id,event.guild.id,on_ended)
+            await self.core.check_and_connect(event.after_channel.id,event.guild.id,True)
+            await self.core.play_sound(greeting.sound_url,event.guild.id,on_ended)
             print(f"▶️ Playing music for {event.user.name} ({event.user.id}) at server {event.guild.name} ({event.guild.id})")

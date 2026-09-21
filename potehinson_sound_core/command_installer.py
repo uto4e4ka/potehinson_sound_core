@@ -1,6 +1,3 @@
-from typing import Callable, Awaitable
-from integrations import music_fetcher
-
 from potehinsonnet.discord_provider import DiscordProvider
 from potehinsonnet.net_models.discord_models import (
     Command,
@@ -10,11 +7,12 @@ from potehinsonnet.net_models.discord_models import (
     DiscordMessageResponse,
     ExecutedCommandResponse,
 )
-from potehinsonnet.setup.command_registrator import CommandRegistrator
+from potehinsonnet.setup.command_registrator import CommandRegistrator, command
 
 from exeptions.playing_execptions import PlayingException
-from integrations.music_embeds import get_music_embed
-from integrations.music_models import MusicAttributes
+from integrations.music.music_embeds import get_music_embed
+from integrations.music.music_fetcher import MusicFetcher
+from integrations.music.music_models import MusicAttributes
 from potehinson_sound_core import music_player
 from potehinson_sound_core.core import Core
 from scenaries.greeting_repository import GreetingRepository, GreetingScenario
@@ -28,12 +26,13 @@ class CommandInstaller:
         core: Core,
         discord_provider: DiscordProvider,
         greeting_repository: GreetingRepository,
+        music_player: music_player.MusicPlayer,
     ) -> None:
         self.command_registrator = command_registrator
         self.core = core
         self.discord_provider = discord_provider
         self.greeting_repository = greeting_repository
-        self.player = music_player.MusicPlayer(core=self.core)
+        self.player = music_player
 
         # Активные сообщения с текущим треком по гильдиям: {guild_id: DiscordMessageResponse}
         self._active_track_messages: dict[int, DiscordMessageResponse] = {}
@@ -41,6 +40,9 @@ class CommandInstaller:
         # ЕДИНОРАЗОВАЯ регистрация событий плеера
         self.player.on_track_change(self._on_music_change)
         self.player.on_track_end(self._on_music_end)
+
+
+    # --- Вспомогательные методы ---
 
     def _get_arg_value(
         self, command: ExecutedCommand, arg_name: str
@@ -70,33 +72,12 @@ class CommandInstaller:
 
         raise ValueError(f"Некорректное значение bool: {value}")
 
-    async def _handle_play_channel(
-        self, command: ExecutedCommand
-    ):
-        """Отдельный обработчик для команды play_channel."""
-        channel_id = self._get_arg_value(command, "voice_channel")
-        url = self._get_arg_value(command, "url")
-
-        if not channel_id or not url:
-            raise ValueError(
-                "Не переданы обязательные аргументы: voice_channel или url"
-            )
-
-        await self.core.play_sound(
-            url=url,
-            guild_id=command.guild.id,
-        )
-        await self.command_registrator.reply(command.entity_id, ExecutedCommandResponse(
-            message=f"Воспроизведение {url} в канале <#{channel_id}> началось.",
-            ephemeral=True,
-            is_final=True,
-        ))
+    # --- События плеера ---
 
     async def _on_music_change(
         self, guild_id: int, text_channel_id: int, item: MusicAttributes
     ) -> None:
         """Событие: Начал играть новый трек"""
-        # Если старое сообщение еще висит — очищаем его
         await self._on_music_end(guild_id, text_channel_id, item)
 
         try:
@@ -130,133 +111,14 @@ class CommandInstaller:
             except Exception as e:
                 print(f"[CommandInstaller] Ошибка удаления сообщения: {e}")
 
-    async def _handle_play(
-        self, command: ExecutedCommand
-    ):
-        if not command.user or not command.user.voice_channel:
-            await self.command_registrator.reply(command.entity_id,ExecutedCommandResponse(
-                    message="❌ Нужно находиться в голосовом канале", is_final=True
-                )
-            )
+    # --- Команды (Аннотированные декоратором @command) ---
 
-        url = self._get_arg_value(command, "url") or ""
-
-
-        # if not url:
-        #     return ExecutedCommandResponse(
-        #         message="❌ Укажите ссылку на аудиозапись", is_final=True
-        #     )
-
-        try:
-            embed = await self.player.play_music_to_chanel(url,command.user.voice_channel.id,command.guild.id,command.channel.id)
-            await self.command_registrator.reply(command.entity_id,ExecutedCommandResponse(
-                    embeds= [embed], is_final=True
-                )
-            )
-        except (PlayingException, FileNotFoundError) as e:
-            await self.command_registrator.reply(command.entity_id, ExecutedCommandResponse(
-                message=f"❌ Ошибка воспроизведения: `{e}`", is_final=True
-            )
-                                                 )
-
-        await self.command_registrator.reply(command.entity_id, ExecutedCommandResponse(
-                message=f"❌ Непредвиденная ошибка:", is_final=True
-        ))
-
-    async def _handle_greeting_install(
-        self, command: ExecutedCommand
-    ):
-        url = self._get_arg_value(command, "url") or ""
-        user_id = self._get_arg_value(command, "user") or ""
-        try:
-            self.greeting_repository.set_greeting(
-                GreetingScenario(
-                    user_id=int(user_id),
-                    guild_id=command.guild.id,
-                    sound_url=url,
-                )
-            )
-            await self.command_registrator.reply(command.entity_id, ExecutedCommandResponse(
-                message=f"Добавлено новое приветствие для <@{user_id}>",
-                is_final=True,
-            ))
-        except FileNotFoundError:
-            await self.command_registrator.reply(command.entity_id, ExecutedCommandResponse(
-                message=f"Ошибка добавления приветствия для <@{user_id}>", is_final=True
-            ))
-
-
-    async def _handle_greeting_delete(
-        self, command: ExecutedCommand
-    ):
-        user_id = int(self._get_arg_value(command, "user") or "0")
-        guild_id = command.guild.id
-        try:
-            self.greeting_repository.remove_greeting(
-                user_id=user_id, guild_id=guild_id
-            )
-            await self.command_registrator.reply(command.entity_id, ExecutedCommandResponse(
-                message=f"Удалено приветствие у <@{user_id}>", is_final=True
-            ))
-        except KeyError:
-            await self.command_registrator.reply(command.entity_id, ExecutedCommandResponse(
-                message=f"У <@{user_id}> не установлено приветствий", is_final=True
-            ))
-
-
-    async def _handle_disable_greeting(
-        self, command: ExecutedCommand
-    ):
-        user_id = int(self._get_arg_value(command, "user") or "0")
-        guild_id = command.guild.id
-        disabled = bool(self._get_bool_arg(command, "disabled"))
-        greeting = self.greeting_repository.get_greeting(
-            user_id=user_id, guild_id=guild_id
-        )
-        old = greeting.disabled
-        greeting.disabled = disabled
-        self.greeting_repository.set_greeting(greeting)
-        await self.command_registrator.reply(command.entity_id, ExecutedCommandResponse(
-            message=f"Изменено состояние greeting.disabled {old}->{disabled} для <@{user_id}>", is_final=True
-        ))
-
-    async def _handle_ask(
-        self, command: ExecutedCommand
-    ):
-        if not command.user or not command.user.voice_channel:
-            await self.command_registrator.reply(command.entity_id, ExecutedCommandResponse(
-                message="❌ Нужно находиться в голосовом канале", is_final=True
-            ))
-        text = self._get_arg_value(command, "text") or ""
-        try:
-            await self.core.check_and_connect(channel_id=command.user.voice_channel.id,force=True,guild_id=command.guild.id)
-            await self.core.play_sound(
-                url=f"http://localhost:8000/tts?text={text}&voice=ru-RU-DmitryNeural",
-                guild_id=command.guild.id,
-            )
-            await self.command_registrator.reply(command.entity_id, ExecutedCommandResponse(
-                message="▶️ Начинаю говорить", is_final=True
-            ))
-        except PlayingException as e:
-            await self.command_registrator.reply(command.entity_id,ExecutedCommandResponse(
-                message=f"❌ Ошибка воспроизведения: `{e}`", is_final=True
-            ))
-
-    def get_commands(
-        self,
-    ) -> list[
-        tuple[
-            Command,
-            Callable[[ExecutedCommand], Awaitable[None]],
-        ]
-    ]:
-        """Возвращает список пар (Command, Handler) для регистрации."""
-        play_channel_command = Command(
+    @command(
+        Command(
             name="play_channel",
             description="Проиграть в канале",
             tag="play_channel",
             permission="sound_core.play_channel",
-            service=self.command_registrator.plugin_name,
             args=[
                 CommandArgument(
                     name="voice_channel",
@@ -272,14 +134,35 @@ class CommandInstaller:
                 ),
             ],
         )
+    )
+    async def _handle_play_channel(
+        self, command: ExecutedCommand
+    ) -> ExecutedCommandResponse:
+        channel_id = self._get_arg_value(command, "voice_channel")
+        url = self._get_arg_value(command, "url")
 
-        play_command = Command(
+        if not channel_id or not url:
+            raise ValueError(
+                "Не переданы обязательные аргументы: voice_channel или url"
+            )
+
+        await self.core.play_sound(
+            url=url,
+            guild_id=command.guild.id,
+        )
+        return ExecutedCommandResponse(
+            message=f"Воспроизведение {url} в канале <#{channel_id}> началось.",
+            ephemeral=True,
+            is_final=True,
+        )
+
+    @command(
+        Command(
             name="play",
             description="Проиграть у себя",
             tag="play",
             permission="sound_core.play",
-            service=self.command_registrator.plugin_name,
-            ephemeral=False,
+            ephemeral=True,
             args=[
                 CommandArgument(
                     name="url",
@@ -289,14 +172,38 @@ class CommandInstaller:
                 )
             ],
         )
+    )
+    async def _handle_play(
+        self, command: ExecutedCommand
+    ) -> ExecutedCommandResponse:
+        if not command.user or not command.user.voice_channel:
+            return ExecutedCommandResponse(
+                message="❌ Нужно находиться в голосовом канале", is_final=True
+            )
 
-        add_binding = Command(
+        url = self._get_arg_value(command, "url") or ""
+
+        try:
+            embed = await self.player.play_music_to_chanel(
+                url,
+                command.user.voice_channel.id,
+                command.guild.id,
+                command.channel.id,
+            )
+            return ExecutedCommandResponse(embeds=[embed], is_final=True)
+        except (PlayingException, FileNotFoundError) as e:
+            return ExecutedCommandResponse(
+                message=f"❌ Ошибка воспроизведения: `{e}`", is_final=True
+            )
+
+
+    @command(
+        Command(
             name="add",
             description="Добавить приветствие для пользователя",
             tag="add_greeting",
             group="greeting",
             permission="sound_core.add",
-            service=self.command_registrator.plugin_name,
             args=[
                 CommandArgument(
                     name="user",
@@ -312,14 +219,37 @@ class CommandInstaller:
                 ),
             ],
         )
+    )
+    async def _handle_greeting_install(
+        self, command: ExecutedCommand
+    ) -> ExecutedCommandResponse:
+        url = self._get_arg_value(command, "url") or ""
+        user_id = self._get_arg_value(command, "user") or ""
+        try:
+            self.greeting_repository.set_greeting(
+                GreetingScenario(
+                    user_id=int(user_id),
+                    guild_id=command.guild.id,
+                    sound_url=url,
+                )
+            )
+            return ExecutedCommandResponse(
+                message=f"Добавлено новое приветствие для <@{user_id}>",
+                is_final=True,
+            )
+        except FileNotFoundError:
+            return ExecutedCommandResponse(
+                message=f"Ошибка добавления приветствия для <@{user_id}>",
+                is_final=True,
+            )
 
-        remove_binding = Command(
+    @command(
+        Command(
             name="remove",
             description="Удалить приветствие для пользователя",
             tag="remove_greeting",
             group="greeting",
             permission="sound_core.remove",
-            service=self.command_registrator.plugin_name,
             args=[
                 CommandArgument(
                     name="user",
@@ -329,13 +259,32 @@ class CommandInstaller:
                 ),
             ],
         )
-        disable_greeting = Command(
+    )
+    async def _handle_greeting_delete(
+        self, command: ExecutedCommand
+    ) -> ExecutedCommandResponse:
+        user_id = int(self._get_arg_value(command, "user") or "0")
+        guild_id = command.guild.id
+        try:
+            self.greeting_repository.remove_greeting(
+                user_id=user_id, guild_id=guild_id
+            )
+            return ExecutedCommandResponse(
+                message=f"Удалено приветствие у <@{user_id}>", is_final=True
+            )
+        except KeyError:
+            return ExecutedCommandResponse(
+                message=f"У <@{user_id}> не установлено приветствий",
+                is_final=True,
+            )
+
+    @command(
+        Command(
             name="disable",
             description="Выключить/Включить приветствие пользователю",
             tag="greeting_disable",
             group="greeting",
             permission="sound_core.disable",
-            service=self.command_registrator.plugin_name,
             args=[
                 CommandArgument(
                     name="user",
@@ -351,11 +300,30 @@ class CommandInstaller:
                 ),
             ],
         )
-        ask = Command(
+    )
+    async def _handle_disable_greeting(
+        self, command: ExecutedCommand
+    ) -> ExecutedCommandResponse:
+        user_id = int(self._get_arg_value(command, "user") or "0")
+        guild_id = command.guild.id
+        disabled = bool(self._get_bool_arg(command, "disabled"))
+        greeting = self.greeting_repository.get_greeting(
+            user_id=user_id, guild_id=guild_id
+        )
+        old = greeting.disabled
+        greeting.disabled = disabled
+        self.greeting_repository.set_greeting(greeting)
+
+        return ExecutedCommandResponse(
+            message=f"Изменено состояние greeting.disabled {old}->{disabled} для <@{user_id}>",
+            is_final=True,
+        )
+
+    @command(
+        Command(
             name="say",
             description="Сказать",
             tag="ask",
-            service=self.command_registrator.plugin_name,
             permission="sound_core.say",
             args=[
                 CommandArgument(
@@ -366,22 +334,73 @@ class CommandInstaller:
                 ),
             ],
         )
+    )
+    async def _handle_ask(
+        self, command: ExecutedCommand
+    ) -> ExecutedCommandResponse:
+        if not command.user or not command.user.voice_channel:
+            return ExecutedCommandResponse(
+                message="❌ Нужно находиться в голосовом канале", is_final=True
+            )
 
-        return [
-            (play_channel_command, self._handle_play_channel),
-            (play_command, self._handle_play),
-            (add_binding, self._handle_greeting_install),
-            (remove_binding, self._handle_greeting_delete),
-            (disable_greeting, self._handle_disable_greeting),
-            (ask, self._handle_ask),
-        ]
-
-    async def start(self, plugin) -> None:
+        text = self._get_arg_value(command, "text") or ""
         try:
-            await self.command_registrator.register_command(self.get_commands())
-        except KeyError:
-            plugin("Error while registering command: . Skipping...")
+            await self.core.check_and_connect(
+                channel_id=command.user.voice_channel.id,
+                force=True,
+                guild_id=command.guild.id,
+            )
+            await self.core.play_sound(
+                url=f"http://localhost:8000/tts?text={text}&voice=ru-RU-DmitryNeural",
+                guild_id=command.guild.id,
+            )
+            return ExecutedCommandResponse(
+                message="▶️ Начинаю говорить", is_final=True
+            )
+        except PlayingException as e:
+            return ExecutedCommandResponse(
+                message=f"❌ Ошибка воспроизведения: `{e}`", is_final=True
+            )
+
+    @command(
+        Command(
+            name="pause",
+            description="Пауза",
+            tag="pause",
+            permission="sound_core.pause",
+        )
+    )
+    async def _handle_pause_sound(
+        self, command: ExecutedCommand
+    ) -> ExecutedCommandResponse:
+        await self.player.pause_track(command.guild.id)
+        return ExecutedCommandResponse(
+            message="Трек остановлен", is_final=True
+        )
+
+    @command(
+        Command(
+            name="resume",
+            description="Продолжить",
+            tag="resume",
+            permission="sound_core.resume",
+        )
+    )
+    async def _handle_resume_sound(
+        self, command: ExecutedCommand
+    ) -> ExecutedCommandResponse:
+        await self.player.resume_track(command.guild.id)
+        return ExecutedCommandResponse(
+            message="Проигрывание восстановлено", is_final=True
+        )
+
+    # --- Управление жизненным циклом ---
+
+    async def start(self,service) -> None:
+        """Автоматически регистрирует все декорированные методы этого инстанса."""
+        await self.command_registrator.register_instance_commands(self)
 
     async def stop(self) -> None:
+        """Отписывает подписки через CommandRegistrator."""
         print("Removing commands...")
-        await self.command_registrator.unregister_command(self.get_commands())
+        await self.command_registrator.close()

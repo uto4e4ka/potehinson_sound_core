@@ -1,8 +1,7 @@
-from abc import ABC, abstractclassmethod, abstractmethod
-from typing import List
+from abc import ABC, abstractmethod
 
-from integrations.music_embeds import MusicAddMessage
-from integrations.music_models import MusicAttributes
+from integrations.music.music_embeds import MusicAddMessage
+from integrations.music.music_models import MusicAttributes
 
 
 class BaseResolver(ABC):

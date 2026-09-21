@@ -2,16 +2,26 @@ from pathlib import Path
 
 from mutagen.mp3 import MP3
 
-from integrations.music_embeds import MusicAddMessage
-from integrations.music_fetcher import get_tag
-from integrations.music_models import MusicAttributes, MusicSource, Music, MusicAuthor, MusicAlbum, MusicGenre
-from integrations.resolvers.resolver import BaseResolver
+from integrations.music.music_embeds import MusicAddMessage
+from integrations.music.music_fetcher import get_tag
+from integrations.music.music_models import MusicAttributes, MusicSource, Music, MusicAuthor, MusicAlbum, MusicGenre
+from integrations.music.resolvers.resolver import BaseResolver
 
 
 class FileResolver(BaseResolver):
 
     def __init__(self, token: str):
         super().__init__(token)
+
+    def get_tag(tags, key: str) -> str:
+        if tags is None:
+            return ""
+        value = tags.get(key)
+
+        if value is None:
+            return ""
+
+        return str(value.text[0]) if value.text else ""
 
     def get_track_by_url(self, url) -> MusicAttributes:
         if not url.lower().endswith(".mp3"):

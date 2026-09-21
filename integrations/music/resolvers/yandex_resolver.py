@@ -4,17 +4,17 @@ from typing import List
 from loguru import logger
 from pydantic import BaseModel
 
-from integrations.music_embeds import MusicAddMessage, AddingType
-from integrations.music_models import (
+from integrations.music.music_embeds import MusicAddMessage, AddingType
+from integrations.music.music_models import (
     MusicAttributes,
     MusicSource,
     Music,
     MusicAuthor,
     MusicAlbum, MusicQueueItem
 )
-from yandex_music import Client
+from yandex_music import Client, Track
 
-from integrations.resolvers.resolver import BaseResolver
+from integrations.music.resolvers.resolver import BaseResolver
 
 
 class YandexLink(BaseModel):
@@ -32,6 +32,69 @@ def _get_artists_str(artists) -> str:
     return ", ".join(artist.name for artist in artists if artist.name)
 
 
+def _parse_url(url: str) -> YandexLink:
+    """Определяет тип ссылки Yandex Music и извлекает ID сущностей."""
+
+    # 1. Трек
+    track_match = re.search(r"track/(\d+)", url)
+    if track_match:
+        return YandexLink(
+            type=AddingType.TRACK, track_id=track_match.group(1)
+        )
+
+    # 2. Альбом
+    album_match = re.search(r"album/(\d+)", url)
+    if album_match and "track" not in url:
+        return YandexLink(
+            type=AddingType.ALBUM, album_id=album_match.group(1)
+        )
+
+    # 3. Плейлист
+    playlist_match = re.search(r"(?:users/([^/]+)/)?playlists/([\w-]+)", url)
+    if playlist_match:
+        return YandexLink(
+            type=AddingType.PLAYLIST,
+            user_id=playlist_match.group(1),
+            playlist_id=playlist_match.group(2),
+        )
+
+    wave_match = re.match(r"^yandex_wave:(\d+)$", url)
+    if wave_match:
+        return YandexLink(
+            type=AddingType.WAVE,
+            track_id=wave_match.group(1),
+        )
+
+    raise ValueError(
+        "Не удалось распознать тип ссылки (трек, альбом или плейлист)"
+    )
+
+
+def _build_music_attributes(track, page_url: str) -> MusicAttributes:
+    """Сборка объекта MusicAttributes из сущности Track."""
+    download_info = track.get_download_info()
+    direct_url = download_info[0].get_direct_link() if download_info else ""
+
+    album_title = track.albums[0].title if track.albums else None
+
+    return MusicAttributes(
+        source=MusicSource.YANDEX_MUSIC,
+        duration=(track.duration_ms or 0) / 1000,
+        music=Music(
+            name=track.title or "Unknown",
+            track_url=direct_url,
+            url=page_url,
+            icon_url=track.get_cover_url("100x100"),
+        ),
+        author=MusicAuthor(
+            name=_get_artists_str(track.artists),
+        ),
+        album=MusicAlbum(
+            name=album_title or ""
+        ),
+    )
+
+
 class YandexResolver(BaseResolver):
 
 
@@ -43,7 +106,7 @@ class YandexResolver(BaseResolver):
 
 
     def can_resolve(self, url) -> bool:
-        if "music.yandex.ru" in url:
+        if any(domain in url for domain in ("music.yandex.ru", "yandex_wave:")):
             return True
         return False
 
@@ -54,10 +117,9 @@ class YandexResolver(BaseResolver):
         Возвращает список словарей:
         [{'title': str, 'url': str, 'author': str}]
         """
-        if "music.yandex.ru" not in url:
-            raise ValueError("Неподдерживаемый URL: адрес должен быть с music.yandex.ru")
 
-        link = self._parse_url(url)
+
+        link = _parse_url(url)
         # 1. Проверяем, является ли ссылка отдельным треком
         if link.type == AddingType.TRACK:
             return self._find_track(url,link.track_id or "")
@@ -65,6 +127,8 @@ class YandexResolver(BaseResolver):
             return self._find_album(url,link.album_id or "")
         elif link.type == AddingType.PLAYLIST:
             return self._find_playlist(url,link.playlist_id or "",link.user_id or "")
+        elif link.type == AddingType.WAVE:
+            return self.get_my_wave_tracks(link.track_id or "0")
         else:
             raise ValueError("Не удалось распознать тип ссылки (трек, альбом или плейлист)")
 
@@ -148,64 +212,6 @@ class YandexResolver(BaseResolver):
             )
         raise FileNotFoundError("Плейлист не найден")
 
-    def _parse_url(self, url: str) -> YandexLink:
-        """Определяет тип ссылки Yandex Music и извлекает ID сущностей."""
-        if "music.yandex.ru" not in url:
-            raise ValueError(
-                "Неподдерживаемый URL: адрес должен быть с music.yandex.ru"
-            )
-
-        # 1. Трек
-        track_match = re.search(r"track/(\d+)", url)
-        if track_match:
-            return YandexLink(
-                type=AddingType.TRACK, track_id=track_match.group(1)
-            )
-
-        # 2. Альбом
-        album_match = re.search(r"album/(\d+)", url)
-        if album_match and "track" not in url:
-            return YandexLink(
-                type=AddingType.ALBUM, album_id=album_match.group(1)
-            )
-
-        # 3. Плейлист
-        playlist_match = re.search(r"(?:users/([^/]+)/)?playlists/([\w-]+)", url)
-        if playlist_match:
-            return YandexLink(
-                type=AddingType.PLAYLIST,
-                user_id=playlist_match.group(1),
-                playlist_id=playlist_match.group(2),
-            )
-
-        raise ValueError(
-            "Не удалось распознать тип ссылки (трек, альбом или плейлист)"
-        )
-
-    def _build_music_attributes(self, track, page_url: str) -> MusicAttributes:
-        """Сборка объекта MusicAttributes из сущности Track."""
-        download_info = track.get_download_info()
-        direct_url = download_info[0].get_direct_link() if download_info else ""
-
-        album_title = track.albums[0].title if track.albums else None
-
-        return MusicAttributes(
-            source=MusicSource.YANDEX_MUSIC,
-            duration=(track.duration_ms or 0) / 1000,
-            music=Music(
-                name=track.title or "Unknown",
-                track_url=direct_url,
-                url=page_url,
-                icon_url=track.get_cover_url("100x100"),
-            ),
-            author=MusicAuthor(
-                name=_get_artists_str(track.artists),
-            ),
-            album=MusicAlbum(
-                name=album_title or ""
-            ),
-        )
-
     def get_tracks_by_url(self, url: str) -> List[MusicAttributes]:
         """Получает полный список моделей MusicAttributes по любой валидной ссылке."""
         found_tracks = self.find_musics(url)
@@ -227,12 +233,14 @@ class YandexResolver(BaseResolver):
         result_list = []
 
         for track, item_info in zip(tracks, found_tracks):
-            attributes = self._build_music_attributes(track, item_info["url"])
+            attributes = _build_music_attributes(track, item_info["url"])
             result_list.append(attributes)
 
         return result_list
 
     def get_track_by_url(self, url) -> MusicAttributes:
+
+        print(self.get_my_wave_tracks(10))
 
         if "music.yandex.ru" not in url:
 
@@ -292,3 +300,67 @@ class YandexResolver(BaseResolver):
 
         return music_attributes
 
+    def get_my_wave_tracks(self, url: str) -> MusicAddMessage:
+        """Получает порцию рекомендованных треков из Моей Волны (станция 'user:onyourwave')."""
+        station_id = "user:onyourwave"
+
+        # Парсим количество из URL/строки (например, "15" из "yandex_wave:15")
+        try:
+            target_count = int(url)
+        except ValueError:
+            target_count = 5  # Дефолтное значение, если не удалось распарсить
+
+        logger.info(f"Ищем треки Моей волны в количестве: {target_count}")
+
+        result_list: List[MusicQueueItem] = []
+        queue = None  # В первой итерации queue передавать не нужно
+
+        # Запрашиваем батчи по 5 треков, пока не наберём нужные target_count
+        while len(result_list) < target_count:
+            try:
+                rotor_result = self.client.rotor_station_tracks(station_id, queue=queue)
+                tracks_info = rotor_result.sequence
+
+                if not tracks_info:
+                    logger.warning("Яндекс Музыка не вернула больше треков.")
+                    break
+
+                for item in tracks_info:
+                    if len(result_list) >= target_count:
+                        break
+
+                    track: Track = item.track
+                    if not track:
+                        continue
+
+                    album_id = track.albums[0].id if track.albums else "0"
+                    page_url = f"https://music.yandex.ru/album/{album_id}/track/{track.id}"
+
+                    try:
+                        queue_item = MusicQueueItem(
+                            music=Music(
+                                name=track.title or "Unknown",
+                                url=page_url
+                            )
+                        )
+                        result_list.append(queue_item)
+                    except Exception as err:
+                        logger.warning(f"Не удалось обработать трек {track.id}: {err}")
+                        continue
+
+                # Формируем queue из ID полученных треков для запроса следующей порции
+                queue = [item.track.id for item in tracks_info if item.track]
+
+            except Exception as e:
+                logger.error(f"Ошибка при получении батча треков Моей Волны: {e}")
+                if not result_list:
+                    raise FileNotFoundError(f"Ошибка при получении треков Моей Волны: {e}")
+                break  # Если уже что-то набрали, отдаём то, что успели получить
+
+        return MusicAddMessage(
+            add_type=AddingType.WAVE,
+            source=MusicSource.YANDEX_MUSIC,
+            name="Моя волна",
+            music_list=result_list,
+            count=len(result_list),
+        )

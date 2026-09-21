@@ -1,0 +1,17 @@
+.env
+.env.local
+.env.production
+secrets.json
+*.pem
+*.key
+
+sounds/
+# Node.js
+node_modules/
+
+# Python
+venv/
+.venv/
+__pycache__/
+*.pyc
+

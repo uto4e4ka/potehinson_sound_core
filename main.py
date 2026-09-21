@@ -26,6 +26,7 @@ async def main():
     sound_core_container.config.plugin.site.from_value("https://potehinson-sound-core")
     sound_core_container.config.is_greeting.from_env("GREETING")
     sound_core_container.config.greeting_sound.from_env("GREETING_SOUND")
+    sound_core_container.config.integrations.music.resolvers.yandex_token.from_env("YANDEX_TOKEN")
     sound_core_container.wire(modules=[__name__])
     app = sound_core_container.app()
     config = uvicorn.Config(app=app, host="0.0.0.0", port=8000)

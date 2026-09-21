@@ -5,9 +5,9 @@ from typing import Awaitable, Callable, Dict, List
 from potehinsonnet.net_models.discord_models import Embed
 
 from exeptions.playing_execptions import PlayingException
-from integrations.music_embeds import get_add_embed
-from integrations.music_models import MusicAttributes, MusicQueueItem
-from integrations import music_fetcher
+from integrations.music.music_embeds import get_add_embed
+from integrations.music.music_models import MusicAttributes, MusicQueueItem
+from integrations.music import music_fetcher
 from potehinson_sound_core.core import Core
 from loguru import logger
 TrackChangeCallback = Callable[[int, int, MusicAttributes], Awaitable[None]]
@@ -16,7 +16,7 @@ TrackEndCallback = Callable[[int, int, MusicAttributes], Awaitable[None]]
 
 class MusicPlayer:
 
-    def __init__(self, core: Core) -> None:
+    def __init__(self, core: Core, music_fetcher: music_fetcher.MusicFetcher) -> None:
         self.queue: Dict[int, deque[MusicQueueItem]] = {}
         self.core = core
         self._player_tasks: Dict[int, asyncio.Task] = {}
@@ -25,6 +25,7 @@ class MusicPlayer:
         self._track_change_listeners: List[TrackChangeCallback] = []
         self._track_end_listeners: List[TrackEndCallback] = []
         self._pause_events: Dict[int, asyncio.Event] = {}
+        self.music_fetcher = music_fetcher
 
     def _get_pause_event(self, guild_id: int) -> asyncio.Event:
         """Возвращает Event паузы. По умолчанию set() = не на паузе."""
@@ -40,7 +41,7 @@ class MusicPlayer:
         if pause_event.is_set():
             pause_event.clear()  # Блокируем дальнейшее продвижение цикла
             try:
-                #await self.core.pause_sound(guild_id=guild_id)
+                await self.core.pause_sound(guild_id=guild_id)
                 pass
             except Exception as e:
                 print(f"[MusicPlayer] Ошибка при паузе в core: {e}")
@@ -53,7 +54,7 @@ class MusicPlayer:
         if not pause_event.is_set():
             pause_event.set()  # Снимаем блокировку
             try:
-                #await self.core.resume_sound(guild_id=guild_id)
+                await self.core.resume_sound(guild_id=guild_id)
                 pass
             except Exception as e:
                 print(f"[MusicPlayer] Ошибка при возобновлении в core: {e}")
@@ -87,7 +88,7 @@ class MusicPlayer:
     async def add_music(
         self, url: str, guild_id: int
     ) -> Embed:
-        attrs = music_fetcher.get_musics(url)
+        attrs = self.music_fetcher.get_musics(url)
         sound_queue = self.queue.setdefault(guild_id, deque())
         sound_queue.extend(attrs.music_list)
         attrs.queue_count = len(sound_queue)
@@ -130,7 +131,7 @@ class MusicPlayer:
             m_attr = (
                 item
                 if isinstance(item, MusicAttributes)
-                else music_fetcher.get_music_by_url(item.url)
+                else self.music_fetcher.get_music_by_url(item.url)
             )
             logger.info(f"[MusicPlayer] Play track {m_attr.music.name}")
 

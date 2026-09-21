@@ -3,7 +3,7 @@ from typing import Awaitable, Callable
 from urllib import response
 
 from potehinsonnet.net_models.discord_models import VoiceChannelUserConnectionEvent, VoiceChannelConnectInteraction, \
-    Channel, Guild, VoicePlayingCallback
+    Channel, Guild, VoicePlayingCallback, SoundControl, SoundAction
 from potehinsonnet.net_models.discord_models import InteractionType, VoiceChannelPlaySound,VoiceChannelUserConnectionType,VoiceConnectionStatus,VoiceConnectionRequest
 from potehinsonnet.net import NatsClient
 import uuid
@@ -22,11 +22,13 @@ class Core:
         self.bot_state = DISCONNECTED
         self.bot_connected = asyncio.Event()
 
+
     async def get_connection(self,guild_id:int)->VoiceConnectionStatus:
         status = await self.nats_client.request("discord.interaction.channel.voice.connection.status", {
         "guild_id": guild_id,
     } ,timeout=10)
         return VoiceConnectionStatus.model_validate(status)
+
 
     async def connect(self,channel_id:int,guild_id:int,interraction_type:InteractionType = InteractionType.CONNECT)-> VoiceConnectionStatus:
         status = await self.nats_client.request("discord.interaction.channel.voice.actions.connect",VoiceConnectionRequest(
@@ -35,6 +37,7 @@ class Core:
             interaction_type= interraction_type
         ).model_dump(mode="json"))
         return VoiceConnectionStatus.model_validate(status)
+
 
     async def check_and_connect(self,channel_id:int,guild_id:int,force:bool)-> VoiceConnectionStatus:
         connection = await self.get_connection(guild_id)
@@ -47,6 +50,31 @@ class Core:
                 else:
                     raise BotBeasyException()
         return connection
+
+
+    async def pause_sound(self,guild_id:int):
+        await self.nats_client.publish("discord.interaction.channel.voice.actions.control",
+                                       SoundControl(
+                                           guild_id=guild_id,
+                                           action=SoundAction.PAUSE
+                                       ).model_dump(mode="json"))
+
+
+    async def resume_sound(self,guild_id:int):
+        await self.nats_client.publish("discord.interaction.channel.voice.actions.control",
+                                       SoundControl(
+                                           guild_id=guild_id,
+                                           action=SoundAction.RESUME
+                                       ).model_dump(mode="json"))
+
+
+    async def stop_sound(self,guild_id:int):
+        await self.nats_client.publish("discord.interaction.channel.voice.actions.control",
+                                       SoundControl(
+                                           guild_id=guild_id,
+                                           action=SoundAction.STOP
+                                       ).model_dump(mode="json"))
+
 
     async def play_sound(self,
                 url:str,
@@ -63,7 +91,8 @@ class Core:
                 sound=url,
                 track_id=track_id,
                 channel = Channel(id= 0,name=""),
-                guild = Guild(id= guild_id,name="")
+                guild = Guild(id= guild_id,name=""),
+                options="-vn"
             ).model_dump(mode="json"))
         response = VoicePlayingCallback.model_validate(response)
         if not response.success:
