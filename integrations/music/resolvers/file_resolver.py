@@ -1,0 +1,47 @@
+from pathlib import Path
+
+from mutagen.mp3 import MP3
+
+from integrations.music_embeds import MusicAddMessage
+from integrations.music_fetcher import get_tag
+from integrations.music_models import MusicAttributes, MusicSource, Music, MusicAuthor, MusicAlbum, MusicGenre
+from integrations.resolvers.resolver import BaseResolver
+
+
+class FileResolver(BaseResolver):
+
+    def __init__(self, token: str):
+        super().__init__(token)
+
+    def get_track_by_url(self, url) -> MusicAttributes:
+        if not url.lower().endswith(".mp3"):
+            raise FileNotFoundError("Неподдерживаемый формат аудиофайла. Поддерживаемые форматы:[`.mp3`]")
+        audio = MP3(url)
+        tags = audio.tags
+        return MusicAttributes(
+            source=MusicSource.FILE,
+            duration=audio.info.length,
+            music=Music(
+                name=get_tag(tags, "TIT2") or Path(url).stem,
+                url=url,
+            ),
+            author=MusicAuthor(
+                name=get_tag(tags, "TPE1") or "Unknown Author",
+            ),
+            album=MusicAlbum(
+                name=get_tag(tags, "TALB"),
+            ),
+            genre=MusicGenre(
+                name=get_tag(tags, "TCON") or "Unknown Genre",
+            ),
+        )
+
+    def can_resolve(self, url) -> bool:
+        if "file://" in url:
+            return True
+        return False
+
+    def find_musics(self, url: str) -> MusicAddMessage:
+        pass
+
+

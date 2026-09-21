@@ -1,6 +1,7 @@
 import re
 from typing import List
 
+from loguru import logger
 from pydantic import BaseModel
 
 from integrations.music_embeds import MusicAddMessage, AddingType
@@ -13,6 +14,9 @@ from integrations.music_models import (
 )
 from yandex_music import Client
 
+from integrations.resolvers.resolver import BaseResolver
+
+
 class YandexLink(BaseModel):
     type: AddingType
     track_id: str| None = None
@@ -20,16 +24,29 @@ class YandexLink(BaseModel):
     playlist_id: str|None = None
     album_id: str|None = None
 
-class YandexResolver:
+
+def _get_artists_str(artists) -> str:
+    """Вспомогательный метод для корректной сборки имён артистов."""
+    if not artists:
+        return "Unknown"
+    return ", ".join(artist.name for artist in artists if artist.name)
+
+
+class YandexResolver(BaseResolver):
+
+
+
     def __init__(self, token: str):
+        super().__init__(token)
         self.token = token
         self.client = Client(token=token).init()
 
-    def _get_artists_str(self, artists) -> str:
-        """Вспомогательный метод для корректной сборки имён артистов."""
-        if not artists:
-            return "Unknown"
-        return ", ".join(artist.name for artist in artists if artist.name)
+
+    def can_resolve(self, url) -> bool:
+        if "music.yandex.ru" in url:
+            return True
+        return False
+
 
     def find_musics(self, url: str) -> MusicAddMessage:
         """Универсальный поиск треков по ссылке (трек, альбом, плейлист).
@@ -43,11 +60,11 @@ class YandexResolver:
         link = self._parse_url(url)
         # 1. Проверяем, является ли ссылка отдельным треком
         if link.type == AddingType.TRACK:
-            return self._find_track(url,link.track_id)
+            return self._find_track(url,link.track_id or "")
         elif link.type == AddingType.ALBUM:
-            return self._find_album(url,link.album_id)
+            return self._find_album(url,link.album_id or "")
         elif link.type == AddingType.PLAYLIST:
-            return self._find_playlist(url,link.playlist_id,link.user_id)
+            return self._find_playlist(url,link.playlist_id or "",link.user_id or "")
         else:
             raise ValueError("Не удалось распознать тип ссылки (трек, альбом или плейлист)")
 
@@ -182,10 +199,10 @@ class YandexResolver:
                 icon_url=track.get_cover_url("100x100"),
             ),
             author=MusicAuthor(
-                name=self._get_artists_str(track.artists),
+                name=_get_artists_str(track.artists),
             ),
             album=MusicAlbum(
-                name=album_title
+                name=album_title or ""
             ),
         )
 
@@ -215,7 +232,7 @@ class YandexResolver:
 
         return result_list
 
-    def get_track_by_url(self, url):
+    def get_track_by_url(self, url) -> MusicAttributes:
 
         if "music.yandex.ru" not in url:
 
@@ -231,15 +248,17 @@ class YandexResolver:
 
         track = self.client.tracks([track_id])[0]
 
-        print(track.get_cover_url("50x50"))
+        logger.info(f"Загружен трек: {track.title}")
 
-        print(f"Загружен трек: {track.title}")
 
-    # Получаем ссылку на поток
+        download_info = track.get_download_info()
 
-        direct_url = track.get_download_info()[0].get_direct_link()
+        best_info = max(
+            download_info,
+            key=lambda info: info.bitrate_in_kbps or 0
+        )
 
-        print(direct_url)
+        direct_url = best_info.get_direct_link()
 
         music_attributes = MusicAttributes(
 
@@ -261,7 +280,7 @@ class YandexResolver:
 
             author=MusicAuthor(
 
-                name="".join(artist.name or "" for artist in track.artists),
+                name="".join((artist.name or "")+", " for artist in track.artists),
 
             ),
 

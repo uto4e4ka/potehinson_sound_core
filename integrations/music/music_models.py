@@ -1,4 +1,4 @@
-from enum import Enum
+from enum import Enum, IntEnum
 
 from pydantic import BaseModel
 
@@ -26,6 +26,21 @@ class MusicAlbum(BaseModel):
 class MusicGenre(BaseModel):
     name: str
 
+
+class AudioQuality(IntEnum):
+    LOW = 64
+    MEDIUM = 192
+    HIGH = 256
+    VERY_HIGH = 320
+
+    @property
+    def display_name(self) -> str:
+        return {
+            AudioQuality.LOW: "LQ",
+            AudioQuality.MEDIUM: "SQ",
+            AudioQuality.HIGH: "HQ",
+            AudioQuality.VERY_HIGH: "HQ+",
+        }[self]
 class MusicAttributes(BaseModel):
     source: MusicSource
     duration: float
@@ -33,6 +48,7 @@ class MusicAttributes(BaseModel):
     album: MusicAlbum|None = None
     genre: MusicGenre|None = None
     music: Music|None = None
+    quality:AudioQuality|None = None
 
 class MusicQueueItem(BaseModel):
     music: Music
