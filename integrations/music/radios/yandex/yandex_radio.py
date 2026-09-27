@@ -1,19 +1,20 @@
 import time
 from typing import Optional, List
+from venv import logger
 
 from yandex_music import ClientAsync, RotorSession, Track, SessionFeedback, SessionEvent
 
+
+from integrations.music.music_models import MusicAttributes
 from integrations.music.radios.radio import BaseRadio
 from integrations.music.radios.yandex.models import Batch, TrackFeedback
-from integrations.music.radios.yandex.utils import get_formatted_track_id, get_time
+from integrations.music.radios.yandex.utils import get_formatted_track_id, get_time, get_played_time, dump_music_model
+
+from potehinson_sound_core.utils import retry
 
 
 
-def get_played_time(start_time: float) -> float:
-    """Возвращает количество проигранных секунд текущего трека."""
-    if not start_time:
-        return 0.0
-    return round(time.time() - start_time, 2)
+
 
 
 class YandexWave(BaseRadio):
@@ -22,9 +23,9 @@ class YandexWave(BaseRadio):
         self._session: Optional[RotorSession] = None
         self.batch: Optional[Batch] = None
         self.queue: list[str] = queue if queue is not None else []
-
-    async def init(self, type: str, tag: str) -> None:
-        self._session = await self.create_or_clone_session(type, tag)
+    @retry(10,3)
+    async def init(self, type: str, tag: str,session:str = "") -> None:
+        self._session = await self.create_or_clone_session(type, tag,session)
         await self.client.rotor_session_feedback_radio_started(self._session.radio_session_id or "",from_="radio-mobile-wave_screen-clean-default")
 
     async def create_or_clone_session(self, type: str, tag: str, session: str = "") -> Optional[RotorSession]:
@@ -33,7 +34,7 @@ class YandexWave(BaseRadio):
         return await self.client.rotor_session_clone(radio_session_id=session)
 
     async def new_batch(self, feedback: Optional[List[SessionFeedback]] = None) -> None:
-        print(f"new batch: {feedback}")
+        logger.debug(f"Yandex wave: new batch: {feedback}")
         session_id = self._session.radio_session_id if self._session else ""
         tracks = await self.client.rotor_session_tracks(
             session_id or "",
@@ -67,8 +68,8 @@ class YandexWave(BaseRadio):
         except (IndexError, AttributeError):
             await self.new_batch(feedback=current_feedback)
             return self.batch.sequence.pop(0).track
-
-    async def track(self) -> Optional[Track]:
+    @retry(10,3)
+    async def track(self) -> Optional[MusicAttributes]:
         # 1. Если трек уже играл — отправляем фидбек о полном прослушивании
         if self.batch and self.batch.last_track and self.batch.last_track.id:
             last_track = self.batch.last_track
@@ -98,9 +99,10 @@ class YandexWave(BaseRadio):
             all_time=duration
         )
         self.__add_queue(track_)
-        return track_
+        return await dump_music_model(track_)
 
-    async def skip(self) -> Optional[Track]:
+    @retry(10, 3)
+    async def skip(self) -> Optional[MusicAttributes]:
         # 1. Формируем фидбек о скипе текущего трека
         if self.batch and self.batch.last_track and self.batch.last_track.id:
             feedback = SessionFeedback(
@@ -131,7 +133,7 @@ class YandexWave(BaseRadio):
             all_time=duration
         )
         self.__add_queue(track_)
-        return track_
+        return await dump_music_model(track_)
 
     def __add_queue(self, track: Optional[Track]) -> None:
         if track:

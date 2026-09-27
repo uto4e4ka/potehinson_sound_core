@@ -1,9 +1,10 @@
 import asyncio
 from typing import cast, Awaitable
 
+from loguru import logger
 from potehinsonnet.net_models.discord_models import Command
 
-from containers.SoundCoreContainer import SoundCoreContainer
+from containers.sound_core_container import SoundCoreContainer
 from importlib.metadata import version
 from dotenv import load_dotenv
 import uvicorn
@@ -12,7 +13,7 @@ load_dotenv()
 
 
 async def main():
-
+    # logger.add("app.log", level="DEBUG")
     sound_core_container = SoundCoreContainer()
     sound_core_container.config.plugin.name.from_value("potehinson_sound_core")
     sound_core_container.config.plugin.label.from_value("[🔊] Potehinson Sound Core ")
@@ -33,7 +34,6 @@ async def main():
     server = uvicorn.Server(config)
     asyncio.create_task(server.serve())
     await sound_core_container.init_resources()
-
     try:
         await asyncio.Event().wait()
     finally:

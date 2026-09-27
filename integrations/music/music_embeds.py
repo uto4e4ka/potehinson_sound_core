@@ -16,6 +16,7 @@ class AddingType(str, Enum):
     PLAYLIST = "Добавлен плейлист"
     WAVE = "Добавлена волна"
 
+
 class MusicAddMessage(BaseModel):
     add_type:AddingType
     source:MusicSource
@@ -85,15 +86,15 @@ async def get_music_embed(music_attr: MusicAttributes) -> Embed:
     embed_color = dominant_color if dominant_color is not None else 0xFF69B4
 
     return Embed(
-        title=music_attr.music.name,
-        description=music_attr.author.name,
+        title=music_attr.music.name or "",
+        description=music_attr.author.name or "",
         color=embed_color,
-        url=music_attr.music.url,
+        url=music_attr.music.url or "",
         author=EmbedAuthor(
-            name="Воспроизведение трека",
+            name=music_attr.playing_type or PlayingType.TRACK,
         ),
         thumbnail=EmbedThumbnail(url=music_attr.music.icon_url),
-        footer=EmbedFooter(text=music_attr.source),
+        footer=EmbedFooter(text=f"{music_attr.source.value} • {music_attr.quality.display_name}"),
         fields=[
             EmbedField(
                 name="Длительность",

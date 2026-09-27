@@ -10,9 +10,6 @@ from integrations.music.resolvers.resolver import BaseResolver
 
 class FileResolver(BaseResolver):
 
-    def __init__(self, token: str):
-        super().__init__(token)
-
     def get_tag(tags, key: str) -> str:
         if tags is None:
             return ""

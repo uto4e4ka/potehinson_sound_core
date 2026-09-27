@@ -263,6 +263,18 @@ pydantic2 = ["pydantic-settings"]
 yaml = ["pyyaml"]
 
 [[package]]
+name = "dishka"
+version = "1.10.1"
+description = "Cute DI framework with scopes and agreeable API"
+optional = false
+python-versions = ">=3.10"
+groups = ["main"]
+files = [
+    {file = "dishka-1.10.1-py3-none-any.whl", hash = "sha256:84f40c1115eb391ce3fb558fd7946c5bcaf6361c35b77b7a185b7697a5720ec7"},
+    {file = "dishka-1.10.1.tar.gz", hash = "sha256:51fb624b9acc948b90f57128460061d1f3a1780121fe1c7d14c565e8bbff2083"},
+]
+
+[[package]]
 name = "idna"
 version = "3.20"
 description = "Internationalized Domain Names in Applications (IDNA)"
@@ -449,7 +461,7 @@ pydantic = ">=2.13.5,<3.0.0"
 type = "git"
 url = "https://github.com/uto4e4ka/poteninson_net.git"
 reference = "dev"
-resolved_reference = "19c7b312f694c1cd5fea51c2a4f87593960bb42b"
+resolved_reference = "8b15fd8d705db31685c15dfb25c919ad94e066af"
 
 [[package]]
 name = "pydantic"
@@ -720,14 +732,13 @@ dev = ["black (>=19.3b0) ; python_version >= \"3.6\"", "pytest (>=4.6.2)"]
 
 [[package]]
 name = "yandex-music"
-version = "3.0.0"
-description = "Неофициальная Python библиотека для работы с API сервиса Яндекс.Музыка."
+version = "3.1.0b2"
+description = "РќРµРѕС„РёС†РёР°Р»СЊРЅР°СЏ Python Р±РёР±Р»РёРѕС‚РµРєР° РґР»СЏ СЂР°Р±РѕС‚С‹ СЃ API СЃРµСЂРІРёСЃР° РЇРЅРґРµРєСЃ.РњСѓР·С‹РєР°."
 optional = false
 python-versions = "~=3.8"
 groups = ["main"]
-files = [
-    {file = "yandex_music-3.0.0.tar.gz", hash = "sha256:a0fbb5c838726f2806af547a48e9dba315d2779b9273d5da8b4ef1749cac3320"},
-]
+files = []
+develop = false
 
 [package.dependencies]
 requests = {version = "*", extras = ["socks"]}
@@ -735,8 +746,15 @@ typing-extensions = "*"
 
 [package.extras]
 async = ["aiofiles", "aiohttp"]
+ynison = ["betterproto (>=1.2.5,<3)", "websockets (>=13.0)"]
+
+[package.source]
+type = "git"
+url = "https://github.com/MarshalX/yandex-music-api.git"
+reference = "main"
+resolved_reference = "2776335c1fc8e4af2b6ab77e196bde251fc6be49"
 
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.14, <4"
-content-hash = "50e56ce1c421bd5a65d4302f5918181405ac1afc59e8c7d3ef6ca43d1167d5d8"
+content-hash = "3cb51d619b95c5801b02866a82bc4aced6e50afbdc73afb6c649163a15091809"

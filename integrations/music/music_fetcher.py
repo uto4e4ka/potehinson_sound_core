@@ -1,7 +1,6 @@
 from integrations.music.music_embeds import MusicAddMessage
 from integrations.music.music_models import MusicAttributes
 from integrations.music.resolvers.resolver import BaseResolver
-from integrations.music.resolvers.yandex_resolver import YandexResolver
 
 
 class MusicFetcher:

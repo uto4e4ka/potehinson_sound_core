@@ -18,10 +18,10 @@ class YandexRadioCommands:
 
     @command(
         Command(
-            name="wave",
-            group="yandex",
+            name="yandex",
+            group="wave",
             tag="yandex_wave",
-            permission="sound_core.yandex.wave",
+            permission="sound_core.wave.yandex",
             description="Запуск Моей Волны",
         )
     )
@@ -33,21 +33,22 @@ class YandexRadioCommands:
         client = await self.yandex_repo.get_async_music_client(user_id=command.user.id)
 
         wave = YandexWave(client)
-        await wave.init("user", "onyourwave")
+        await wave.init("user", "onyourwave",)
         await self.radio_client.stream_to_channel(
             wave, command.user.voice_channel.id, command.guild.id, command.channel.id
         )
-        return ExecutedCommandResponse(message="🌊 Волна запущена")
+        return ExecutedCommandResponse(message=f"🌊 Волна запущена")
 
     @command(
         Command(
             name="skip",
-            group="yandex",
-            tag="yandex_skip",
-            permission="sound_core.yandex.wave",
+            group="wave",
+            tag="wave_skip",
+            permission="sound_core.wave.skip",
             description="Пропустить трек в волне",
         )
     )
     async def handle_skip(self, command: ExecutedCommand) -> ExecutedCommandResponse:
         await self.radio_client.skip(command.guild.id)
         return ExecutedCommandResponse(message="⏭️ Пропущено", is_final=True)
+
