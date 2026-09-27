@@ -1,3 +1,5 @@
+from typing import Optional
+
 from potehinsonnet.discord_provider import DiscordProvider
 from potehinsonnet.net_models.discord_models import (
     Command,
@@ -8,11 +10,15 @@ from potehinsonnet.net_models.discord_models import (
     ExecutedCommandResponse,
 )
 from potehinsonnet.setup.command_registrator import CommandRegistrator, command
+from yandex_music import ClientAsync
 
 from exeptions.playing_execptions import PlayingException
+from integrations.music.clients.yandex_client import YandexClientRepo
 from integrations.music.music_embeds import get_music_embed
 from integrations.music.music_fetcher import MusicFetcher
 from integrations.music.music_models import MusicAttributes
+from integrations.music.radios.radio_client import RadioClient
+from integrations.music.radios.yandex.yandex_radio import YandexWave
 from potehinson_sound_core import music_player
 from potehinson_sound_core.core import Core
 from scenaries.greeting_repository import GreetingRepository, GreetingScenario
@@ -27,6 +33,7 @@ class CommandInstaller:
         discord_provider: DiscordProvider,
         greeting_repository: GreetingRepository,
         music_player: music_player.MusicPlayer,
+        yandex_client_repo: YandexClientRepo,
     ) -> None:
         self.command_registrator = command_registrator
         self.core = core
@@ -40,8 +47,9 @@ class CommandInstaller:
         # ЕДИНОРАЗОВАЯ регистрация событий плеера
         self.player.on_track_change(self._on_music_change)
         self.player.on_track_end(self._on_music_end)
-
-
+        self.yandex_client_repo = yandex_client_repo
+        self.radio_client:RadioClient = RadioClient(self.core)
+        self.radio_client.add_track_change_listener(self._on_music_change)
     # --- Вспомогательные методы ---
 
     def _get_arg_value(
@@ -99,7 +107,6 @@ class CommandInstaller:
         self, guild_id: int, text_channel_id: int, item: MusicAttributes
     ) -> None:
         """Событие: Трек закончился или был пропущен"""
-        print(f"Removing track message for guild {guild_id}")
         msg_response = self._active_track_messages.pop(guild_id, None)
 
         if msg_response:
@@ -394,7 +401,50 @@ class CommandInstaller:
             message="Проигрывание восстановлено", is_final=True
         )
 
+    @command(
+        Command(
+            name="skip",
+            description="Пропустить трек",
+            tag="skip",
+            permission="sound_core.skip",
+        )
+    )
+    async def _skip_track(self,command: ExecutedCommand) -> ExecutedCommandResponse:
+        await self.player.skip_track(command.guild.id)
+        return ExecutedCommandResponse(
+            message="Пропускаю трек...", is_final=True
+        )
+    @command(
+        Command(
+            name="wave",
+            group="yandex",
+            tag="yandex_wave",
+            permission="sound_core.yandex.wave",
+            description="Запуск моей волны"
+        )
+    )
+    async def _stream_yandex(self,command: ExecutedCommand) -> ExecutedCommandResponse:
+        await self.command_registrator.reply(command.entity_id,"Запускаю волну...")
+        yandex: ClientAsync = await self.yandex_client_repo.get_async_music_client(user_id= command.user.id)
+        wave = YandexWave(yandex)
+        await wave.init("user","onyourwave",)
+        await self.radio_client.stream_to_channel(wave,command.user.voice_channel.id,command.guild.id,command.channel.id)
+        return ExecutedCommandResponse(message="Стрим запущен")
     # --- Управление жизненным циклом ---
+
+    @command(
+        Command(
+            name="skip",
+            group="yandex",
+            tag="yandex_skip",
+            permission="sound_core.yandex.wave",
+            description="Пропустить трек моей волны"
+        )
+    )
+    async def _stream_yandex_skip(self,command: ExecutedCommand) -> ExecutedCommandResponse:
+        await self.command_registrator.reply(command.entity_id,"Пропускаю...")
+        await self.radio_client.skip(command.guild.id)
+        return ExecutedCommandResponse(message="Трек пропущен")
 
     async def start(self,service) -> None:
         """Автоматически регистрирует все декорированные методы этого инстанса."""

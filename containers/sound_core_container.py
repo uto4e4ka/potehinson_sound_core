@@ -11,8 +11,7 @@ from potehinsonnet.net import NatsClient
 from potehinsonnet.setup import command_registrator
 
 from integrations.music.music_fetcher import MusicFetcher
-from integrations.music.resolvers.resolver import BaseResolver
-from integrations.music.resolvers.yandex_resolver import YandexResolver
+from integrations.music.resolvers.yandex.yandex_resolver import YandexResolver
 from integrations.tts.edge_tts_generator import TTSService
 from integrations.tts.tts_server import create_app
 from potehinson_sound_core.command_installer import CommandInstaller
