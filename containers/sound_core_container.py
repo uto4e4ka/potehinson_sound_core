@@ -12,11 +12,13 @@ from potehinsonnet.setup import command_registrator
 
 from integrations.music.clients.yandex_client import YandexClientRepo
 from integrations.music.music_fetcher import MusicFetcher
+from integrations.music.resolvers.tts.tts_resolver import TtsResolver
+from integrations.music.resolvers.yandex.yandex_resolver import YandexResolver
 from integrations.tts.edge_tts_generator import TTSService
 from integrations.tts.tts_server import create_app
 from potehinson_sound_core.commands.command_installer import CommandInstaller
 from potehinson_sound_core.core import Core
-from potehinson_sound_core.music_player import MusicPlayer
+from integrations.music.player.music_player import MusicPlayer
 from potehinson_sound_core.user_interaction import UserInteraction
 from scenaries.greeting_repository import GreetingRepository
 
@@ -36,7 +38,7 @@ async def _init_user_interaction(
     finally:
         await interaction.stop()
 
-
+@asynccontextmanager
 async def _init_command_registrator(
         command_registrator: command_registrator.CommandRegistrator,
         core: Core,
@@ -44,9 +46,10 @@ async def _init_command_registrator(
         discord_provider: discord_provider.DiscordProvider,
         greeting_repository: GreetingRepository,
         music_player: MusicPlayer,
-        yandex_client:YandexClientRepo
+        yandex_client:YandexClientRepo,
+        music_fetcher: MusicFetcher,
 ) -> AsyncGenerator[CommandInstaller, None]:
-    installer = CommandInstaller(command_registrator, core, discord_provider, greeting_repository,music_player,yandex_client)
+    installer = CommandInstaller(command_registrator, core, discord_provider, greeting_repository,music_player,yandex_client,music_fetcher)
     await health.add_listener(installer.start)
     try:
         yield installer
@@ -86,12 +89,17 @@ class SoundCoreContainer(containers.DeclarativeContainer):
     )
 
     # Токен берется из скорректированного пути конфига
-    # yandex_resolver: Singleton[YandexResolver] = providers.Singleton(
-    #     YandexResolver,
-    # )
+    yandex_client: YandexClientRepo = YandexClientRepo()
+    yandex_resolver: Singleton[YandexResolver] = providers.Singleton(
+        YandexResolver,
+        yandex_client
+    )
+    tts_resolver = TtsResolver()
 
     # Убрано присвоение типа `: providers.List` (в dependency_injector это класс-фабрика)
     resolvers = providers.List(
+        tts_resolver,
+        yandex_resolver,
 
     )
 
@@ -100,9 +108,9 @@ class SoundCoreContainer(containers.DeclarativeContainer):
         resolvers=resolvers
     )
 
-    music_player: Singleton[MusicPlayer] = providers.Singleton(MusicPlayer,core=core,music_fetcher=music_fetcher)
+    music_player: Singleton[MusicPlayer] = providers.Singleton(MusicPlayer,core=core)
 
-    yandex_client: YandexClientRepo = YandexClientRepo()
+
 
     command_registrator: providers.Resource[CommandInstaller] = providers.Resource(
         _init_command_registrator,
@@ -112,7 +120,8 @@ class SoundCoreContainer(containers.DeclarativeContainer):
         discord_provider=nats_container.discord_provider,
         greeting_repository=greeting_repository,
         music_player = music_player,
-        yandex_client = yandex_client
+        yandex_client = yandex_client,
+        music_fetcher = music_fetcher
     )
 
     tts_service: Singleton[TTSService] = providers.Singleton(TTSService)

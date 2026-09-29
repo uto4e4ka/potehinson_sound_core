@@ -12,8 +12,9 @@ def retry(count: int, delay: int):
                 try:
                     return await func(*args, **kwargs)
                 except Exception:
-                    attempts -= 1
 
+                    attempts -= 1
+                    print(f"retry {attempts}")
                     if attempts == 0:
                         raise
 

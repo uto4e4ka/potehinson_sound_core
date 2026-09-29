@@ -6,7 +6,7 @@ from PIL import Image
 from potehinsonnet.net_models.discord_models import Embed, EmbedFooter, EmbedField, EmbedAuthor, EmbedThumbnail
 from pydantic import BaseModel
 
-from integrations.music.music_models import MusicAttributes, MusicSource, MusicQueueItem
+from integrations.music.music_models import MusicAttributes, MusicSource, MusicQueueItem, PlayingType
 
 
 class AddingType(str, Enum):
@@ -14,7 +14,10 @@ class AddingType(str, Enum):
     TRACK = "Добавлен трек"
     ARTIST = "Добавлены треки исполнителя"
     PLAYLIST = "Добавлен плейлист"
+    AUTHOR = "Добавлены треки автора"
     WAVE = "Добавлена волна"
+    SEARCH = "Поиск"
+    SAY = "Воспроизведение речи"
 
 
 class MusicAddMessage(BaseModel):

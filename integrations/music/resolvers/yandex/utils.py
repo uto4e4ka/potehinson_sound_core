@@ -53,6 +53,12 @@ def _parse_url(url: str) -> YandexLink:
             playlist_id=playlist_match.group(2),
         )
 
+    author_match = re.search(r"artist/(\d+)", url)
+    if author_match:
+        return YandexLink(
+            type=AddingType.AUTHOR,
+            user_id=author_match.group(1),
+        )
     # 4. Моя Волна
     wave_match = re.match(r"^yandex_wave:(\d+)$", url)
 
@@ -62,6 +68,10 @@ def _parse_url(url: str) -> YandexLink:
             track_id=wave_match.group(1),
         )
 
+    return YandexLink(
+        type=AddingType.SEARCH,
+        track_id=url,
+    )
     raise ValueError(
         "Не удалось распознать тип ссылки "
         "(трек, альбом, плейлист или Моя Волна)"

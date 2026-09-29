@@ -1,6 +1,9 @@
+import asyncio
+
 from integrations.music.music_embeds import MusicAddMessage
 from integrations.music.music_models import MusicAttributes
 from integrations.music.resolvers.resolver import BaseResolver
+from potehinson_sound_core.utils import retry
 
 
 class MusicFetcher:
@@ -14,12 +17,14 @@ class MusicFetcher:
                 return resolver
         raise FileNotFoundError("Данный тип ссылок не поддерживается.")
 
-    def get_musics(self, url:str) -> MusicAddMessage|None:
+    async def get_musics(self, url:str) -> MusicAddMessage|None:
         resolver = self._get_resolver(url)
-        return resolver.find_musics(url)
+        ans = await resolver.find_musics(url)
+        return ans
 
-    def get_music_by_url(self,url:str)-> MusicAttributes:
+    @retry(5,5)
+    async def get_music_by_url(self,url:str)-> MusicAttributes:
         resolver = self._get_resolver(url)
-        return resolver.get_track_by_url(url)
+        return await resolver.get_track_by_url(url)
 
 

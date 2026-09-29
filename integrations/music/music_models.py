@@ -11,10 +11,12 @@ class MusicSource(str,Enum):
     VK_MUSIC = "VkMusic"
     FILE = "File"
     SOUND_CLOUD="SoundCloud"
+    POTEHINSON_TTS = "PotehinsonTTS"
 
 class PlayingType(str, Enum):
     TRACK = "Воспроизведение трека"
     WAVE = "Моя волна"
+    SPEECH = "Воспроизведение речи"
 
 
 FeedbackCallback = Callable[[str, float], Awaitable[None]]

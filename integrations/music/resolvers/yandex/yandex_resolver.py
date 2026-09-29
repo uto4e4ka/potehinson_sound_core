@@ -4,6 +4,7 @@ from typing import List
 from loguru import logger
 from yandex_music import ClientAsync
 
+from integrations.music.clients.yandex_client import YandexClientRepo
 from integrations.music.music_embeds import MusicAddMessage, AddingType
 from integrations.music.music_models import (
     MusicAttributes,
@@ -15,24 +16,21 @@ from integrations.music.music_models import (
     AudioQuality,
 )
 from integrations.music.resolvers.resolver import BaseResolver
-from integrations.music.resolvers.yandex.utils import _get_artists_str, _build_music_attributes, _parse_url
-
-
-
-
-
+from integrations.music.resolvers.yandex.utils import _get_artists_str, _build_music_attributes, _parse_url, \
+    get_track_page_url
 
 
 class YandexResolver(BaseResolver):
 
-    def __init__(self, client:ClientAsync):
-        self.client:ClientAsync = client
+    def __init__(self, client_repo:YandexClientRepo):
+        self.client_repo = client_repo
 
     def can_resolve(self, url: str) -> bool:
         return any(
             domain in url
             for domain in (
                 "music.yandex.ru",
+                ""
             )
         )
 
@@ -44,7 +42,6 @@ class YandexResolver(BaseResolver):
         - плейлист;
         - Моя Волна.
         """
-
         link = _parse_url(url)
 
         if link.type == AddingType.TRACK:
@@ -64,7 +61,15 @@ class YandexResolver(BaseResolver):
                 link.playlist_id or "",
                 link.user_id or "",
             )
-
+        if link.type == AddingType.SEARCH:
+            return await self.search(
+                url
+            )
+        if link.type == AddingType.AUTHOR:
+            return await self._find_author(
+                url,
+                link.user_id or ""
+            )
         # if link.type == AddingType.WAVE:
             # return get_my_wave_tracks(
             #     client=self.client,
@@ -81,14 +86,14 @@ class YandexResolver(BaseResolver):
         track_id: str,
     ) -> MusicAddMessage:
         results = []
-
-        tracks = await self.client.tracks([track_id])
+        client = await YandexClientRepo().get_async_music_client(1)
+        tracks = await client.tracks([track_id])
 
         if not tracks:
             raise FileNotFoundError("Трек не найден")
 
         track = tracks[0]
-
+        link = await track.get_download_info_async()
         results.append(
             MusicQueueItem(
                 music=Music(
@@ -98,6 +103,7 @@ class YandexResolver(BaseResolver):
                         f"{track.albums[0].id if track.albums else '0'}"
                         f"/track/{track.id}"
                     ),
+                    track_url= await link[0].get_direct_link_async()
                 )
             )
         )
@@ -116,7 +122,8 @@ class YandexResolver(BaseResolver):
         url: str,
         album_id: str,
     ) -> MusicAddMessage:
-        album = await self.client.albums_with_tracks(album_id)
+        client = await YandexClientRepo().get_async_music_client(1)
+        album = await client.albums_with_tracks(album_id)
 
         results = []
 
@@ -154,14 +161,14 @@ class YandexResolver(BaseResolver):
         user_id: str,
     ) -> MusicAddMessage:
         results = []
-
+        client = await YandexClientRepo().get_async_music_client(1)
         if user_id and playlist_id.isdigit():
-            playlist = await self.client.users_playlists(
+            playlist = await client.users_playlists(
                 playlist_id,
                 user_id,
             )
         else:
-            playlist = await self.client.playlist(playlist_id)
+            playlist = await client.playlist(playlist_id)
 
         if playlist and playlist.tracks:
             for track_short in playlist.tracks:
@@ -200,6 +207,77 @@ class YandexResolver(BaseResolver):
 
         raise FileNotFoundError("Плейлист не найден")
 
+    async def _find_author(
+            self,
+            url: str,
+            artist_id: str,
+            max_tracks: int = 100,
+    ) -> MusicAddMessage:
+        client = await self.client_repo.get_async_music_client(1)
+
+        if not artist_id or not artist_id.isdigit():
+            raise FileNotFoundError("Некорректный ID исполнителя")
+
+        all_tracks = []
+        page_size = 20
+        page = 0
+
+
+        while len(all_tracks) < max_tracks:
+
+            page_tracks = await client.artists_tracks(
+                artist_id=artist_id,
+                page=page,
+                page_size=page_size
+            )
+
+            if not page_tracks:
+                break
+
+            all_tracks.extend(page_tracks)
+
+
+            if len(page_tracks) < page_size:
+                break
+
+            page += 1
+
+        if not all_tracks:
+            raise FileNotFoundError("Треки исполнителя не найдены")
+
+
+        all_tracks = all_tracks[:max_tracks]
+
+        artists = await client.artists([artist_id])
+        artist = artists[0] if artists else None
+
+        results = [
+            MusicQueueItem(
+                music=Music(
+                    name=track.title or "Unknown",
+                    url=get_track_page_url(
+                        track.albums[0].id if track.albums else "0",
+                        track.id
+                    ),
+                    icon_url=track.get_cover_url("100x100"),
+                )
+            )
+            for track in all_tracks
+        ]
+
+        artist_name = artist.name if artist else "Unknown Artist"
+        icon_url = artist.get_og_image_url("150x150") if artist and artist.cover else ""
+
+        return MusicAddMessage(
+            music_list=results,
+            name=f"Популярное: {artist_name}",
+            count=len(results),
+            source=MusicSource.YANDEX_MUSIC,
+            add_type=AddingType.AUTHOR,
+            icon_url=icon_url,
+            url=url,
+        )
+
     async def get_tracks_by_url(
         self,
         url: str,
@@ -227,8 +305,8 @@ class YandexResolver(BaseResolver):
 
         if not track_ids:
             return []
-
-        tracks = await self.client.tracks(track_ids)
+        client = await YandexClientRepo().get_async_music_client(1)
+        tracks = await client.tracks(track_ids)
 
         result_list = []
 
@@ -262,7 +340,8 @@ class YandexResolver(BaseResolver):
 
         track_id = match.group(1)
 
-        tracks = await self.client.tracks([track_id])
+        client = await YandexClientRepo().get_async_music_client(1)
+        tracks = await client.tracks([track_id])
 
         if not tracks:
             raise FileNotFoundError("Трек не найден")
@@ -311,5 +390,50 @@ class YandexResolver(BaseResolver):
             ),
         )
 
+    async def search(self, query: str) -> MusicAddMessage:
+        client = await self.client_repo.get_async_music_client(1)
+        result = await client.search(query)
+
+        tracks = result.tracks.results if result.tracks else []
+        artists = result.artists.results if result.artists else []
+
+        # Поиск точного совпадения артиста
+        exact_artist = next(
+            (artist for artist in artists if artist.name.lower() == query.lower()),
+            None,
+        )
+
+        # Если нашли точного артиста — отдаем его популярные треки
+        if exact_artist:
+            return await self._find_author(
+                url=f"https://music.yandex.ru/artist/{exact_artist.id}",
+                artist_id=str(exact_artist.id),
+            )
+
+        # Иначе возвращаем найденный трек
+        if tracks:
+            track = tracks[0]
+            album_id = track.albums[0].id if track.albums else "0"
+            track_url = get_track_page_url(album_id, track.id)
+
+            return MusicAddMessage(
+                add_type=AddingType.TRACK,
+                source=MusicSource.YANDEX_MUSIC,
+                name=track.title or "Unknown",
+                url=track_url,
+                icon_url=track.get_cover_url(size="100x100"),
+                count=1,
+                music_list=[
+                    MusicQueueItem(
+                        music=Music(
+                            name=track.title or "Unknown",
+                            url=track_url,
+                            icon_url=track.get_cover_url(size="100x100"),
+                        ),
+                    )
+                ],
+            )
+
+        raise FileNotFoundError("По запросу ничего не найдено.")
 
 

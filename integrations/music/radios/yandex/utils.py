@@ -23,7 +23,7 @@ def get_played_time(start_time: float) -> float:
         return 0.0
     return round(time.time() - start_time, 2)
 
-async def get_track_url(track: Track) -> Optional[str]:
+async def get_track_url(track: Track) -> tuple[str,int]:
     links = await track.get_download_info_async()
     if not links:
         raise FileNotFoundError(
@@ -34,13 +34,15 @@ async def get_track_url(track: Track) -> Optional[str]:
         links,
         key=lambda info: (info.bitrate_in_kbps or 0),
     )
-    return await best_info.get_direct_link_async()
+    return await best_info.get_direct_link_async(),best_info.bitrate_in_kbps
 
 async def dump_music_model(track:Track)->MusicAttributes:
+    info = await get_track_url(track)
+    direct_url, bitrate = info
     music = Music(
        name=track.title or "",
        url=get_track_page_url(track.albums[0].id,track.id),
-        track_url= await get_track_url(track) or "",
+        track_url=  direct_url,
         icon_url=track.get_cover_url("100x100")
     )
     album = MusicAlbum(
@@ -53,7 +55,7 @@ async def dump_music_model(track:Track)->MusicAttributes:
         duration=track.duration_ms/1000,
         music=music,
         album=album,
-        quality=AudioQuality.VERY_HIGH,
+        quality=AudioQuality.from_bitrate(bitrate),
         author = author,
         playing_type=PlayingType.WAVE,
     )
