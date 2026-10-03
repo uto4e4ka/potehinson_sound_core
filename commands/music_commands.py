@@ -1,4 +1,5 @@
-from potehinsonnet.net_models.discord_models import Command, CommandArgument, ExecutedCommand, ExecutedCommandResponse
+from potehinsonnet.net_models.discord_models import Command, CommandArgument, ExecutedCommand, ExecutedCommandResponse, \
+    ComponentButton, ActionRow, Separator, TextDisplay, Container, ComponentButtonStyle
 from potehinsonnet.setup.command_registrator import command
 
 from integrations.music.music_fetcher import MusicFetcher
@@ -50,7 +51,9 @@ class MusicCommands:
             await self.player.add_to_channel_player(
                 channel_id, guild_id, command.channel.id
             )
-            return ExecutedCommandResponse(embeds=[embed], is_final=True)
+            return ExecutedCommandResponse(embeds=[embed],
+
+                                           is_final=True)
         except Exception as e:
             return ExecutedCommandResponse(message=f"❌ {e}", is_final=True)
 
@@ -100,6 +103,25 @@ class MusicCommands:
         if is_shuffled:
             return ExecutedCommandResponse(message="🔀 Случайное воспроизведение включено", is_final=True)
         return ExecutedCommandResponse(message="➡️ Случайное воспроизведение отключено", is_final=True)
+
+    @command(
+        Command(
+            name="previous",
+            description="Вернуться к предыдущему треку",
+            tag="previous",
+            permission="sound_core.previous",
+        )
+    )
+    async def handle_previous(self, command: ExecutedCommand) -> ExecutedCommandResponse:
+        guild_id = command.guild.id
+        success = await self.player.previous_track(guild_id)
+        if success:
+            return ExecutedCommandResponse(
+                message="⏮️ Возвращаемся к предыдущему треку", is_final=True
+            )
+        return ExecutedCommandResponse(
+            message="❌ Не удалось переключить трек", is_final=True
+        )
 
     @command(
         Command(

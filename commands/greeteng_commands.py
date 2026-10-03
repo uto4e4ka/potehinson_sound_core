@@ -33,17 +33,15 @@ class GreetingCommands:
         url = self._get_arg(command, "url") or ""
         user_id = self._get_arg(command, "user") or "0"
 
-        try:
-            self.greeting_repository.set_greeting(
-                GreetingScenario(
-                    user_id=int(user_id),
-                    guild_id=command.guild.id,
-                    sound_url=url,
-                )
+        self.greeting_repository.set_greeting(
+            GreetingScenario(
+                user_id=int(user_id),
+                guild_id=command.guild.id,
+                sound_url=url,
             )
-            return ExecutedCommandResponse(message=f"✅ Добавлено приветствие для <@{user_id}>", is_final=True)
-        except Exception as e:
-            return ExecutedCommandResponse(message=f"❌ Ошибка: {e}", is_final=True)
+        )
+        return ExecutedCommandResponse(message=f"✅ Добавлено приветствие для <@{user_id}>", is_final=True)
+
 
     @command(
         Command(
