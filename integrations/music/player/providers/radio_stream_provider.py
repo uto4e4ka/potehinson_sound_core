@@ -16,3 +16,6 @@ class RadioStreamProvider(BaseStreamProvider):
 
     async def skip_track(self) -> Optional[MusicAttributes]:
         return await self.radio.skip()
+    #
+    # async def prev_track(self) -> Optional[MusicAttributes]:
+    #     return await self.radio.skip()

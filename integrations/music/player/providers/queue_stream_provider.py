@@ -31,10 +31,16 @@ class QueueStreamProvider(BaseStreamProvider):
         """Скип — это просто переход к следующему треку."""
         return await self.next_track()
 
-    async def previous_track(self) -> Optional[MusicAttributes]:
+    def has_previous(self) -> bool:
+        return self.current_index > 0
+
+    def has_next(self) -> bool:
+        return self.current_index + 1 < len(self.queue)
+
+    async def prev_track(self) -> Optional[MusicAttributes]:
         """Откатывает указатель назад и возвращает предыдущий трек."""
         if self.current_index <= 0:
-            return None  # Мы уже на первом треке или очередь не запускалась
+            return None  #
 
         self.current_index -= 1
         return await self._get_current()
@@ -61,47 +67,79 @@ class QueueStreamProvider(BaseStreamProvider):
         if attrs and attrs.music_list:
             new_items = attrs.music_list
 
+            # ВСЕГДА обновляем оригинальную очередь
+            self._original_queue.extend(new_items)
+
             if self.is_shuffled:
+                # 1. Разделяем на уже сыгранные и оставшиеся
                 played = self.queue[: self.current_index + 1]
                 upcoming = self.queue[self.current_index + 1:]
 
+                # 2. Добавляем новые треки в несыгранный хвост и перемешиваем ИХ
                 upcoming.extend(new_items)
-
                 random.shuffle(upcoming)
 
+                # 3. Собираем очередь обратно
                 self.queue = played + upcoming
-                self._original_queue.extend(new_items)
             else:
                 self.queue.extend(new_items)
 
-            remaining_tracks = max(0, len(self.queue) - (self.current_index + 1))
+            # Точный расчёт: сколько элементов находится СТРОГО ПОСЛЕ текущего индекса
+            if 0 <= self.current_index < len(self.queue):
+                remaining_tracks = len(self.queue) - (self.current_index + 1)
+            else:
+                # Если очередь еще не запущена (current_index == -1)
+                remaining_tracks = len(self.queue)
+
+            # Записываем честный остаток очереди в атрибуты сообщения
             attrs.queue_count = remaining_tracks
 
         return get_add_embed(attrs)
 
     def shuffle_queue(self) -> bool:
-        """Включает/выключает случайное перемешивание."""
+        """Переключает режим shuffle."""
         if not self.queue:
             return self.is_shuffled
 
         if not self.is_shuffled:
+            # === ВКЛЮЧАЕМ SHUFFLE ===
+            # Если оригинал по какой-то причине рассинхронизирован, обновляем его
+            if len(self._original_queue) != len(self.queue):
+                self._original_queue = list(self.queue)
 
-            self._original_queue = list(self.queue)
+            if 0 <= self.current_index < len(self.queue):
+                # Извлекаем ТЕКУЩИЙ играющий трек по его индексу
+                all_tracks = list(self.queue)
+                current_track = all_tracks.pop(self.current_index)
 
-            played = self.queue[: self.current_index + 1]
-            upcoming = self.queue[self.current_index + 1:]
-            random.shuffle(upcoming)
-            self.queue = played + upcoming
+                # Перемешиваем ВСЕ остальные треки
+                random.shuffle(all_tracks)
+
+                # Ставим текущий трек на первое место (индекс 0)
+                self.queue = [current_track] + all_tracks
+                self.current_index = 0
+            else:
+                random.shuffle(self.queue)
+                self.current_index = 0
+
             self.is_shuffled = True
+
         else:
+            # === ВЫКЛЮЧАЕМ SHUFFLE ===
             current_track = (
-                self.queue[self.current_index] if 0 <= self.current_index < len(self.queue) else None
+                self.queue[self.current_index]
+                if 0 <= self.current_index < len(self.queue)
+                else None
             )
+
+            # Восстанавливаем оригинальную очередь
             self.queue = list(self._original_queue)
             self.is_shuffled = False
 
+            # Находим точный индекс текущего трека в оригинальной очереди
             if current_track and current_track in self.queue:
                 self.current_index = self.queue.index(current_track)
+
         return self.is_shuffled
 
     async def _get_current(self) -> Optional[MusicAttributes]:
@@ -117,5 +155,5 @@ class QueueStreamProvider(BaseStreamProvider):
             return await self.music_fetcher.get_music_by_url(item.music.url)
         except Exception as e:
             logger.error(f"[QueueProvider] Ошибка загрузки трека {item.music.url}: {e}")
-            # Если трек зафейлился (например, удален с YouTube), идем к следующему
+            # Если трек зафейлился, переходим к следующему
             return await self.next_track()

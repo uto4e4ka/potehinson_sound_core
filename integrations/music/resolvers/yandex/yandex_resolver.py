@@ -254,6 +254,7 @@ class YandexResolver(BaseResolver):
         results = [
             MusicQueueItem(
                 music=Music(
+                    id = track.id,
                     name=track.title or "Unknown",
                     url=get_track_page_url(
                         track.albums[0].id if track.albums else "0",
@@ -374,6 +375,7 @@ class YandexResolver(BaseResolver):
             source=MusicSource.YANDEX_MUSIC,
             duration=(track.duration_ms or 0) / 1000,
             music=Music(
+                id=track.id,
                 name=track.title or "Unknown",
                 track_url=direct_url,
                 url=url,

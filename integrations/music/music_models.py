@@ -26,6 +26,7 @@ class Music(BaseModel):
     url: str
     icon_url: str = ""
     track_url: str = ""
+    id: str|int = ""
 
     feedback_callback: Optional[FeedbackCallback] = Field(
         default=None,

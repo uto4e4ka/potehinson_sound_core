@@ -59,7 +59,7 @@ def format_duration(seconds: float) -> str:
     minutes, seconds = divmod(int(seconds), 60)
     return f"`{minutes}` мин `{seconds:02d}` сек"
 
-async def _extract_dominant_color(url: str) -> int | None:
+async def extract_dominant_color(url: str) -> int | None:
     """Скачивает обложку и находит преобладающий цвет через квантование (Fast Octree)."""
     if not url:
         return None
@@ -83,7 +83,7 @@ async def _extract_dominant_color(url: str) -> int | None:
 
 async def get_music_embed(music_attr: MusicAttributes) -> Embed:
     # 1. Пытаемся получить цвет обложки с помощью квантования
-    dominant_color = await _extract_dominant_color(music_attr.music.icon_url)
+    dominant_color = await extract_dominant_color(music_attr.music.icon_url)
 
     # 2. Если не получилось извлечь (или нет icon_url) — берем стандартный розовый
     embed_color = dominant_color if dominant_color is not None else 0xFF69B4

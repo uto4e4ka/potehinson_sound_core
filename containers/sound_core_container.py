@@ -4,19 +4,23 @@ from typing import AsyncGenerator
 from dependency_injector import containers, providers
 from dependency_injector.providers import Singleton
 from fastapi import FastAPI
+from loguru import logger
 from potehinsonnet import discord_provider
 from potehinsonnet.containers.nats_container import NatsContainer
 from potehinsonnet.monitoring.health import Health
 from potehinsonnet.net import NatsClient
 from potehinsonnet.setup import command_registrator
+from potehinsonnet.setup.button_registrator import ButtonRegistrator
 
+from control.button_control import ButtonControl
+from control.control_init import ControlInit
 from integrations.music.clients.yandex_client import YandexClientRepo
 from integrations.music.music_fetcher import MusicFetcher
 from integrations.music.resolvers.tts.tts_resolver import TtsResolver
 from integrations.music.resolvers.yandex.yandex_resolver import YandexResolver
 from integrations.tts.edge_tts_generator import TTSService
 from integrations.tts.tts_server import create_app
-from potehinson_sound_core.commands.command_installer import CommandInstaller
+from commands.command_installer import CommandInstaller
 from potehinson_sound_core.core import Core
 from integrations.music.player.music_player import MusicPlayer
 from potehinson_sound_core.user_interaction import UserInteraction
@@ -55,6 +59,23 @@ async def _init_command_registrator(
         yield installer
     finally:
         await installer.stop()
+
+@asynccontextmanager
+async def _init_control(
+    button_registrator: ButtonRegistrator,
+    music_player: MusicPlayer,
+    yandex_repo:YandexClientRepo
+) -> AsyncGenerator[None, None]:
+
+    logger.info("Button Control Init")
+
+    await button_registrator.register_instance(
+        ButtonControl(music_player,yandex_repo)
+    )
+
+    yield
+
+    logger.info("Button Control Close")
 
 
 class SoundCoreContainer(containers.DeclarativeContainer):
@@ -122,6 +143,12 @@ class SoundCoreContainer(containers.DeclarativeContainer):
         music_player = music_player,
         yandex_client = yandex_client,
         music_fetcher = music_fetcher
+    )
+    control_init: providers.Resource[None] = providers.Resource(
+        _init_control,
+        button_registrator=nats_container.button_registrator,
+        music_player = music_player,
+        yandex_repo = yandex_client
     )
 
     tts_service: Singleton[TTSService] = providers.Singleton(TTSService)

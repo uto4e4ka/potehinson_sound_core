@@ -40,6 +40,7 @@ async def dump_music_model(track:Track)->MusicAttributes:
     info = await get_track_url(track)
     direct_url, bitrate = info
     music = Music(
+        id=track.id,
        name=track.title or "",
        url=get_track_page_url(track.albums[0].id,track.id),
         track_url=  direct_url,

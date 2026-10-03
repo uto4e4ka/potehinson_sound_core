@@ -16,8 +16,6 @@ class YandexRadioCommands:
         self.yandex_repo = yandex_repo
         self.registrator = registrator
         self.music_player = music_player
-        # Храним RadioStreamProvider отдельно для каждой гильдии (guild.id)
-        self.radio_providers: dict[int, RadioStreamProvider] = {}
 
     @command(
         Command(
@@ -43,7 +41,6 @@ class YandexRadioCommands:
 
             # Создаем и запоминаем провайдер волны для конкретной гильдии
             radio_provider = RadioStreamProvider(wave)
-            self.radio_providers[guild_id] = radio_provider
 
             self.music_player.set_provider(guild_id, radio_provider)
             await self.music_player.add_to_channel_player(

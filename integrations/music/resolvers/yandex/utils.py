@@ -99,9 +99,11 @@ def _build_music_attributes(
     )
 
     return MusicAttributes(
+
         source=MusicSource.YANDEX_MUSIC,
         duration=(track.duration_ms or 0) / 1000,
         music=Music(
+            id= track.id,
             name=track.title or "Unknown",
             track_url=direct_url,
             url=page_url,

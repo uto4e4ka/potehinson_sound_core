@@ -35,7 +35,7 @@ class MusicCommands:
             tag="play",
             permission="sound_core.play",
             ephemeral=True,
-            args=[CommandArgument(name="url", required=True, type="string", description="Ссылка")],
+            args=[CommandArgument(name="url", required=False, type="string", description="Ссылка")],
         )
     )
     async def handle_play(self, command: ExecutedCommand) -> ExecutedCommandResponse:
@@ -43,17 +43,23 @@ class MusicCommands:
             channel_id = self._ensure_voice(command)
             guild_id = command.guild.id
             url = next((a.value for a in command.args if a.name == "url"), "")
-
             provider = self._get_or_create_provider(guild_id)
-            embed = await provider.add_music(url)
+
+            if not url:
+                if len(provider.queue) <= 0:
+                    raise FileNotFoundError("Очередь пуста")
+                response_kwargs = {"message": "▶️ Воспроизведение возобновлено"}
+            else:
+                embed = await provider.add_music(url)
+                response_kwargs = {"embeds": [embed]}
 
             self.player.set_provider(guild_id, provider=provider)
             await self.player.add_to_channel_player(
                 channel_id, guild_id, command.channel.id
             )
-            return ExecutedCommandResponse(embeds=[embed],
 
-                                           is_final=True)
+            return ExecutedCommandResponse(**response_kwargs, is_final=True)
+
         except Exception as e:
             return ExecutedCommandResponse(message=f"❌ {e}", is_final=True)
 
@@ -85,8 +91,9 @@ class MusicCommands:
         )
     )
     async def resume(self, command: ExecutedCommand) -> ExecutedCommandResponse:
-        await self.player.resume_track(command.guild.id)
-        return ExecutedCommandResponse(message="▶️ Возобновляем", is_final=True)
+        if await self.player.resume_track(command.guild.id,command.user.voice_channel.id):
+            return ExecutedCommandResponse(message="▶️ Возобновляем", is_final=True)
+        return ExecutedCommandResponse(message="Трек не на паузе", is_final=True)
 
     @command(
         Command(

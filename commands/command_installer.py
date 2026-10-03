@@ -11,9 +11,9 @@ from scenaries.greeting_repository import GreetingRepository
 from .tts_commands import TTSCommands
 
 # Импортируем наши новые модули команд:
-from ..commands.greeteng_commands import GreetingCommands
-from ..commands.music_commands import MusicCommands
-from ..commands.yandex_commands import YandexRadioCommands
+from commands.greeteng_commands import GreetingCommands
+from commands.music_commands import MusicCommands
+from commands.yandex_commands import YandexRadioCommands
 
 
 class CommandInstaller:
@@ -30,7 +30,7 @@ class CommandInstaller:
         self.command_registrator = command_registrator
 
         # Общие сервисы
-        self.track_message_service = TrackMessageService(discord_provider)
+        self.track_message_service = TrackMessageService(discord_provider,music_player)
 
         # Связываем события
         music_player.on_track_change(self.track_message_service.on_music_change)

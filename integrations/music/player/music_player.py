@@ -25,14 +25,13 @@ class MusicPlayer:
         self._pause_events: Dict[int, asyncio.Event] = {}
 
         self._skipped_flags: Dict[int, bool] = {}
+        self._previous_flags: Dict[int, bool] = {}
         self.providers: Dict[int, BaseStreamProvider] = {}
 
     def set_provider(self, guild_id: int, provider: BaseStreamProvider) -> None:
-        """Устанавливает или меняет провайдер (очередь/радио) для гильдии."""
         self.providers[guild_id] = provider
 
     def _get_pause_event(self, guild_id: int) -> asyncio.Event:
-        """Возвращает Event паузы. По умолчанию set() = не на паузе."""
         if guild_id not in self._pause_events:
             event = asyncio.Event()
             event.set()
@@ -50,9 +49,13 @@ class MusicPlayer:
             return True
         return False
 
-    async def resume_track(self, guild_id: int) -> bool:
+    async def resume_track(self, guild_id: int,voice_channel_id:int) -> bool:
+
         pause_event = self._get_pause_event(guild_id)
         if not pause_event.is_set():
+            await self.core.check_and_connect(
+                channel_id=voice_channel_id, guild_id=guild_id, force=False
+            )
             pause_event.set()
             try:
                 await self.core.resume_sound(guild_id=guild_id)
@@ -62,7 +65,6 @@ class MusicPlayer:
         return False
 
     async def skip_track(self, guild_id: int) -> bool:
-        """Принудительно пропускает текущий трек."""
         task = self._player_tasks.get(guild_id)
         if not task or task.done():
             return False
@@ -81,21 +83,39 @@ class MusicPlayer:
         logger.debug(f"[MusicPlayer] Трек принудительно пропущен для гильдии {guild_id}")
         return True
 
-    # async def previous_track(self, guild_id: int) -> bool:
-    #     """Переход к предыдущему треку (если провайдер поддерживает)."""
-    #     provider = self.providers.get(guild_id)
-    #     if not provider:
-    #         return False
-    #
-    #     # Вызываем откат в провайдере
-    #     prev_attr = await provider.previous_track()
-    #     if not prev_attr:
-    #         return False
-    #
-    #     # Помечаем как пропущенный и останавливаем текущий звук, чтобы цикл переключил трек
-    #     self._skipped_flags[guild_id] = True
-    #     await self.core.stop_sound(guild_id=guild_id)
-    #     return True
+    async def previous_track(self, guild_id: int) -> bool:
+        task = self._player_tasks.get(guild_id)
+        if not task or task.done():
+            return False
+
+        provider = self.providers.get(guild_id)
+        if not provider:
+            return False
+
+        is_implemented = (
+                type(provider).prev_track is not BaseStreamProvider.prev_track
+                or type(provider).prev_track is not BaseStreamProvider.prev_track
+        )
+
+        if not is_implemented:
+            raise IndexError("❌ Данный тип воспроизведения не поддерживает перемотки назад.")
+
+        if not provider.has_previous():
+            raise IndexError("✅ Это уже самый первый трек")
+
+        self._previous_flags[guild_id] = True
+
+        pause_event = self._get_pause_event(guild_id)
+        if not pause_event.is_set():
+            pause_event.set()
+
+        try:
+            await self.core.stop_sound(guild_id=guild_id)
+        except Exception as e:
+            logger.error(f"[MusicPlayer] Ошибка при остановке звука в core: {e}")
+
+        logger.debug(f"[MusicPlayer] Откат на предыдущий трек для гильдии {guild_id}")
+        return True
 
     def on_track_change(self, callback: TrackChangeCallback):
         self._track_change_listeners.append(callback)
@@ -128,6 +148,22 @@ class MusicPlayer:
                 self._queue_loop(guild_id, text_channel_id)
             )
 
+    async def stop_player(self, guild_id: int) -> None:
+        task = self._player_tasks.get(guild_id)
+        if task is None or task.done():
+            return
+        task.cancel()
+        try:
+            await self.core.stop_sound(guild_id=guild_id)
+        except Exception as e:
+            logger.error(
+                f"[MusicPlayer] Ошибка при остановке звука в core: {e}"
+            )
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
     async def add_to_channel_player(
             self, voice_channel_id: int, guild_id: int, text_channel_id: int
     ) -> None:
@@ -159,12 +195,23 @@ class MusicPlayer:
                     await asyncio.sleep(2)
                     continue
 
-                if self._skipped_flags.get(guild_id, False):
-                    m_attr = await provider.skip_track()
+                if self._previous_flags.get(guild_id, False):
+                    try:
+                        m_attr = await provider.prev_track()
+                    except Exception:
+                        self._previous_flags[guild_id] = False
+                        continue
+                elif self._skipped_flags.get(guild_id, False):
+                    try:
+                        m_attr = await provider.skip_track()
+                    except Exception:
+                        self._skipped_flags[guild_id] = False
+                        continue
                 else:
                     m_attr = await provider.next_track()
 
                 self._skipped_flags[guild_id] = False
+                self._previous_flags[guild_id] = False
 
                 if m_attr is None:
                     logger.info(f"[MusicPlayer] В очереди нет треков для guild={guild_id}. Ожидание...")
@@ -200,5 +247,6 @@ class MusicPlayer:
             self._player_tasks.pop(guild_id, None)
             self._track_finished_events.pop(guild_id, None)
             self._skipped_flags.pop(guild_id, None)
+            self._previous_flags.pop(guild_id, None)
             self._pause_events.pop(guild_id, None)
             logger.info(f"[MusicPlayer] Таска плеера завершена для guild={guild_id}")
