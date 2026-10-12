@@ -1,5 +1,5 @@
 import asyncio
-from typing import Awaitable, Callable, Dict, List, Optional
+from typing import Awaitable, Callable, Dict, List, Optional, TypeVar, Type
 
 from loguru import logger
 from potehinsonnet.net_models.discord_models import Embed
@@ -12,6 +12,7 @@ from potehinson_sound_core.core import Core
 TrackChangeCallback = Callable[[int, int, MusicAttributes], Awaitable[None]]
 TrackEndCallback = Callable[[int, int, MusicAttributes], Awaitable[None]]
 
+T = TypeVar("T", bound=BaseStreamProvider)
 
 class MusicPlayer:
 
@@ -30,6 +31,36 @@ class MusicPlayer:
 
     def set_provider(self, guild_id: int, provider: BaseStreamProvider) -> None:
         self.providers[guild_id] = provider
+
+    def remove_provider(self, guild_id: int) -> None:
+        self.providers.pop(guild_id, None)
+
+    def get_or_create_provider(
+            self,
+            guild_id: int,
+            provider_cls: Type[T],
+            *args,
+            **kwargs
+    ) -> T:
+        """
+        Возвращает существующий провайдер, если он нужного типа,
+        или пересоздает/инициализирует новый провайдер для гильдии.
+        """
+        current_provider = self.providers.get(guild_id)
+
+        # Если провайдер уже существует и совпадает по типу
+        if isinstance(current_provider, provider_cls):
+            return current_provider
+
+        if not current_provider:
+            new_provider = provider_cls(*args, **kwargs)
+            self.set_provider(guild_id, provider=new_provider)
+            return new_provider
+
+
+        raise PlayingException("Нельзя сменить источник, пока идет воспроизведение другого типа")
+
+
 
     def _get_pause_event(self, guild_id: int) -> asyncio.Event:
         if guild_id not in self._pause_events:
@@ -249,4 +280,5 @@ class MusicPlayer:
             self._skipped_flags.pop(guild_id, None)
             self._previous_flags.pop(guild_id, None)
             self._pause_events.pop(guild_id, None)
+            self.remove_provider(guild_id)
             logger.info(f"[MusicPlayer] Таска плеера завершена для guild={guild_id}")

@@ -1,6 +1,9 @@
 import asyncio
 import logging
+from contextlib import asynccontextmanager
 from functools import wraps
+
+import uvicorn
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import StreamingResponse
@@ -54,3 +57,15 @@ def create_app(tts_service: TTSService) -> FastAPI:
         )
 
     return app
+
+
+@asynccontextmanager
+async def run_tts_server(app: FastAPI, host: str, port: int):
+    """Запускает TTS-сервер на время работы плагина."""
+    server = uvicorn.Server(uvicorn.Config(app=app, host=host, port=port))
+    task = asyncio.create_task(server.serve())
+    try:
+        yield server
+    finally:
+        server.should_exit = True
+        await task

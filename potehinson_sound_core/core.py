@@ -85,27 +85,43 @@ class Core:
         status = await self.get_connection(guild_id)
         # if not status.connected or status.channel.id != channel_id:
         #     await self.connect(channel_id,guild_id)
-        response = await self.nats_client.request(
-            "discord.interaction.channel.voice.actions.play_sound",
-            VoiceChannelPlaySound(
-                sound=url,
-                track_id=track_id,
-                channel = Channel(id= 0,name=""),
-                guild = Guild(id= guild_id,name=""),
-                options="-vn"
-            ).model_dump(mode="json"))
-        response = VoicePlayingCallback.model_validate(response)
-        if not response.success:
-            raise PlayingException(response.message)
+        sub = None
         if on_ended:
-            async def _on_sound_ended_msg(msg):
-                    await on_ended()
-                    await sub.unsubscribe()
+            ended = False
 
+            async def _on_sound_ended_msg(msg):
+                nonlocal ended
+                if ended:
+                    return
+                ended = True
+                # Отписка должна быть последней: nats-py отменяет задачу обработчика при unsubscribe
+                await on_ended()
+                await sub.unsubscribe()
+
+            # Подписываемся до запуска трека, иначе короткий трек может закончиться раньше подписки
             sub = await self.nats_client.subscribe(
                 f"discord.interaction.channel.voice.events.sound_ended.{track_id}",
                 _on_sound_ended_msg
             )
+
+        try:
+            response = await self.nats_client.request(
+                "discord.interaction.channel.voice.actions.play_sound",
+                VoiceChannelPlaySound(
+                    sound=url,
+                    track_id=track_id,
+                    channel = Channel(id= 0,name=""),
+                    guild = Guild(id= guild_id,name=""),
+                    options="-vn"
+                ).model_dump(mode="json"))
+            response = VoicePlayingCallback.model_validate(response)
+            if not response.success:
+                raise PlayingException(response.message)
+        except Exception:
+            if sub is not None and not ended:
+                ended = True
+                await sub.unsubscribe()
+            raise
 
 
 

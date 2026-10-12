@@ -1,7 +1,6 @@
 from loguru import logger
 from potehinsonnet.net_models.discord_models import ExecutedComponent, ExecutedComponentResponse
 from potehinsonnet.setup.button_registrator import button, ButtonRegistrator
-from werkzeug.exceptions import NotFound
 
 from integrations.music.clients.yandex_client import YandexClientRepo
 from integrations.music.player import music_player
@@ -36,10 +35,10 @@ class ButtonControl:
 
     @button("music:wave_from_track")
     async def wave_by_track(self,arg:ExecutedComponent):
-        id = arg.context["track_id"]
+        id = (arg.context or {}).get("track_id")
         if not id:
             logger.warning("No context by track_id")
-            raise NotFound("Ну удается запустить волну по треку.")
+            raise FileNotFoundError("Не удается запустить волну по треку.")
         client = await self.yandex_repo.get_async_music_client(arg.user.id)
         radio = YandexWave(client)
         await radio.init("track", f"{id}")

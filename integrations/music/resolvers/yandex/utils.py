@@ -42,7 +42,7 @@ def _parse_url(url: str) -> YandexLink:
 
     # 3. Плейлист
     playlist_match = re.search(
-        r"(?:users/([^/]+)/)?playlists/([\w-]+)",
+        r"(?:users/([^/]+)/)?playlists/([\w.-]+)",
         url,
     )
 

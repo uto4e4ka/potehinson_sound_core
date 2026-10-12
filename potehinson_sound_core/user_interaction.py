@@ -11,12 +11,11 @@ from scenaries.greeting_repository import GreetingRepository, GreetingScenario
 
 
 class UserInteraction:
-    def __init__(self,core:Core,nats_client:NatsClient,is_greeting:bool,greeting_sound:str,greeting_repository:GreetingRepository):
+    def __init__(self,core:Core,nats_client:NatsClient,is_greeting:bool,greeting_repository:GreetingRepository):
         self.core = core
         self.nats_client = nats_client
         self.sub = None
         self.is_greeting = is_greeting
-        self.greeting_sound = greeting_sound
         self.greeting_repository = greeting_repository
 
     async def start(self):
@@ -25,6 +24,13 @@ class UserInteraction:
 
     async def stop(self):
         await self.sub.unsubscribe()
+
+    async def __aenter__(self):
+        await self.start()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.stop()
 
     async def on_connect_event(self,body:dict):
         event = VoiceChannelUserConnectionEvent.model_validate(body)

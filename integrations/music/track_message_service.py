@@ -16,7 +16,7 @@ class TrackMessageService:
         self._active_track_messages: Dict[int, DiscordMessageResponse] = {}
         self.player = player
 
-    def id_shuffled(self,guild_id:int) -> bool:
+    def is_shuffled(self,guild_id:int) -> bool:
         provider = self.player.providers.get(guild_id)
         if not provider:
             return False
@@ -29,7 +29,7 @@ class TrackMessageService:
         await self.on_music_end(guild_id)
 
         try:
-            embed = await get_music_container(item,shuffle=self.id_shuffled(guild_id))
+            embed = await get_music_container(item,shuffle=self.is_shuffled(guild_id))
             raw_response = await self.discord_provider.send_message(
                 NatsMessage(
                     text="",

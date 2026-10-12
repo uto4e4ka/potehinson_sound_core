@@ -16,25 +16,33 @@ async def get_music_container(
         *,
         shuffle:bool = False,
                               ) -> Container:
+    name = attr.music.name or 'Unknown'
+    title = f"[{name}]({attr.music.url})" if attr.music.url else name
+    header = (
+        f"{attr.playing_type.value if (attr and attr.playing_type) else PlayingType.TRACK.value}\n"
+        f"### {title}\n"
+        f"{attr.author.name}\n"
+    )
+
+    # Discord не принимает пустой URL картинки, а Section без accessory не бывает,
+    # поэтому без обложки (например, TTS) шапка — обычный текст
+    if attr.music.icon_url:
+        header_component = Section(
+            content=header,
+            accessory=ComponentThumbnail(
+                url=attr.music.icon_url,
+                description=name,
+            ),
+        )
+    else:
+        header_component = TextDisplay(content=header)
+
     return Container(
         accent_color=await extract_dominant_color(
             attr.music.icon_url
         ),
         components=[
-            Section(
-                content=(
-                    f"{attr.playing_type.value if (attr and attr.playing_type) else PlayingType.TRACK.value}\n"
-                    f"### [{attr.music.name or 'Unknown'}]"
-                    f"({attr.music.url or ''})\n"
-                    f"{attr.author.name}\n"
-
-
-                ),
-                accessory=ComponentThumbnail(
-                    url=attr.music.icon_url,
-                    description=attr.music.name or "Обложка",
-                ),
-            ),
+            header_component,
             TextDisplay(
                 content=
                 "**Длительность:**\n"

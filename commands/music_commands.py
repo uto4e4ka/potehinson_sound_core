@@ -10,23 +10,19 @@ from exeptions.playing_execptions import PlayingException
 
 
 class MusicCommands:
-    def __init__(self, player: music_player.MusicPlayer, music_fetcher: MusicFetcher, core: Core):
+    def __init__(self, player: music_player.MusicPlayer, music_fetcher: MusicFetcher):
         self.player = player
-        self.core = core
         self.music_fetcher = music_fetcher
-        # Храним отдельный провайдер очереди для каждого сервера (guild_id)
-        self.providers: dict[int, QueueStreamProvider] = {}
+
+    def get_provider(self, guild_id: int) -> QueueStreamProvider:
+        """Отдельная очередь для каждого сервера, хранится в плеере."""
+        return self.player.get_or_create_provider(guild_id, QueueStreamProvider, music_fetcher=self.music_fetcher)
 
     def _ensure_voice(self, command: ExecutedCommand) -> int:
         if not command.user or not command.user.voice_channel:
             raise PlayingException("❌ Нужно находиться в голосовом канале")
         return command.user.voice_channel.id
 
-    def _get_or_create_provider(self, guild_id: int) -> QueueStreamProvider:
-        """Гарантирует уникальную очередь для каждого сервера."""
-        if guild_id not in self.providers:
-            self.providers[guild_id] = QueueStreamProvider(self.music_fetcher)
-        return self.providers[guild_id]
 
     @command(
         Command(
@@ -35,7 +31,7 @@ class MusicCommands:
             tag="play",
             permission="sound_core.play",
             ephemeral=True,
-            args=[CommandArgument(name="url", required=False, type="string", description="Ссылка")],
+            args=[CommandArgument(name="url", required=True, type="string", description="Ссылка")],
         )
     )
     async def handle_play(self, command: ExecutedCommand) -> ExecutedCommandResponse:
@@ -43,22 +39,13 @@ class MusicCommands:
             channel_id = self._ensure_voice(command)
             guild_id = command.guild.id
             url = next((a.value for a in command.args if a.name == "url"), "")
-            provider = self._get_or_create_provider(guild_id)
-
-            if not url:
-                if len(provider.queue) <= 0:
-                    raise FileNotFoundError("Очередь пуста")
-                response_kwargs = {"message": "▶️ Воспроизведение возобновлено"}
-            else:
-                embed = await provider.add_music(url)
-                response_kwargs = {"embeds": [embed]}
-
-            self.player.set_provider(guild_id, provider=provider)
+            provider = self.get_provider(guild_id)
+            embed = await provider.add_music(url)
             await self.player.add_to_channel_player(
                 channel_id, guild_id, command.channel.id
             )
 
-            return ExecutedCommandResponse(**response_kwargs, is_final=True)
+            return ExecutedCommandResponse(embeds=[embed], is_final=True)
 
         except Exception as e:
             return ExecutedCommandResponse(message=f"❌ {e}", is_final=True)
@@ -104,7 +91,7 @@ class MusicCommands:
         )
     )
     async def shuffle(self, command: ExecutedCommand) -> ExecutedCommandResponse:
-        provider = self._get_or_create_provider(command.guild.id)
+        provider = self.get_provider(command.guild.id)
         is_shuffled = provider.shuffle_queue()
 
         if is_shuffled:
@@ -130,35 +117,3 @@ class MusicCommands:
             message="❌ Не удалось переключить трек", is_final=True
         )
 
-    @command(
-        Command(
-            name="say",
-            tag="say",
-            description="Сказать",
-            permission="sound_core.tts.say",
-            args=[
-                CommandArgument(
-                    name="text",
-                    description="Текст",
-                    required=True,
-                    type="string",
-                )
-            ],
-        )
-    )
-    async def say(self, command: ExecutedCommand) -> ExecutedCommandResponse:
-        try:
-            channel_id = self._ensure_voice(command)
-            guild_id = command.guild.id
-            text = next((a.value for a in command.args if a.name == "text"), "")
-
-            provider = self._get_or_create_provider(guild_id)
-            await provider.add_music(f"http://localhost:8000/integrations/tts?text={text}&voice=ru-RU-DmitryNeural")
-
-            self.player.set_provider(guild_id, provider=provider)
-            await self.player.add_to_channel_player(
-                channel_id, guild_id, command.channel.id
-            )
-            return ExecutedCommandResponse(message="🗣️ Начинаю говорить", is_final=True)
-        except Exception as e:
-            return ExecutedCommandResponse(message=f"❌ {e}", is_final=True)

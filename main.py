@@ -1,49 +1,23 @@
 import asyncio
-from typing import cast, Awaitable
 
-from loguru import logger
-from potehinsonnet.net_models.discord_models import Command
-
-from containers.sound_core_container import SoundCoreContainer
-from importlib.metadata import version
 from dotenv import load_dotenv
-import uvicorn
 
-load_dotenv()
+from integrations.tts.edge_tts_generator import TTSService
+from integrations.tts.tts_server import create_app, run_tts_server
+from potehinson_sound_core.app import Settings, create_plugin
 
 
-async def main():
-    # logger.add("app.log", level="DEBUG")
-    sound_core_container = SoundCoreContainer()
-    sound_core_container.config.plugin.name.from_value("potehinson_sound_core")
-    sound_core_container.config.plugin.label.from_value("[🔊] Potehinson Sound Core ")
-    sound_core_container.config.plugin.type.from_value("plugin")
-    sound_core_container.config.plugin.description.from_value("Воспроизведение, управление звуками.\nПриветствие и ивенты.")
-    sound_core_container.config.plugin.icon.from_value("")
-    sound_core_container.config.plugin.author.from_value("Uto4ka404")
-    sound_core_container.config.plugin.version.from_value(
-        "0.0.1"
-    )
-    sound_core_container.config.plugin.site.from_value("https://potehinson-sound-core")
-    sound_core_container.config.is_greeting.from_env("GREETING")
-    sound_core_container.config.greeting_sound.from_env("GREETING_SOUND")
-    sound_core_container.config.integrations.music.resolvers.yandex_token.from_env("YANDEX_TOKEN")
-    sound_core_container.wire(modules=[__name__])
-    app = sound_core_container.app()
-    config = uvicorn.Config(app=app, host="0.0.0.0", port=8000)
-    server = uvicorn.Server(config)
-    asyncio.create_task(server.serve())
-    await sound_core_container.init_resources()
+async def main() -> None:
+    load_dotenv()
+    settings = Settings.from_env()
+
+    plugin = create_plugin(settings)
+    plugin.add_lifespan(run_tts_server(create_app(TTSService()), host=settings.tts_host, port=settings.tts_port))
+    await plugin.serve()
+
+
+if __name__ == "__main__":
     try:
-        await asyncio.Event().wait()
-    finally:
-        print("Shutting down")
-        await sound_core_container.shutdown_resources()
-
-
-
-
-
-
-
-asyncio.run(main())
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        pass

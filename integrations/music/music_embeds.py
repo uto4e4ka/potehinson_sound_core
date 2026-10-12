@@ -34,11 +34,12 @@ class MusicAddMessage(BaseModel):
 def get_add_embed(message: MusicAddMessage) -> Embed:
     embed = Embed(
         title=message.name,
-        url=message.url,
+        url=message.url or None,
         author=EmbedAuthor(
             name= message.add_type
         ),
-        thumbnail= EmbedThumbnail(url=message.icon_url),
+        # Discord отклоняет картинку с пустым URL
+        thumbnail= EmbedThumbnail(url=message.icon_url) if message.icon_url else None,
         fields=[
             EmbedField(
                 name= "Добавлено треков",
@@ -92,11 +93,11 @@ async def get_music_embed(music_attr: MusicAttributes) -> Embed:
         title=music_attr.music.name or "",
         description=music_attr.author.name or "",
         color=embed_color,
-        url=music_attr.music.url or "",
+        url=music_attr.music.url or None,
         author=EmbedAuthor(
             name=music_attr.playing_type or PlayingType.TRACK,
         ),
-        thumbnail=EmbedThumbnail(url=music_attr.music.icon_url),
+        thumbnail=EmbedThumbnail(url=music_attr.music.icon_url) if music_attr.music.icon_url else None,
         footer=EmbedFooter(text=f"{music_attr.source.value} • {music_attr.quality.display_name}"),
         fields=[
             EmbedField(

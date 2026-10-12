@@ -86,7 +86,7 @@ class YandexResolver(BaseResolver):
         track_id: str,
     ) -> MusicAddMessage:
         results = []
-        client = await YandexClientRepo().get_async_music_client(1)
+        client = await self.client_repo.get_async_music_client(1)
         tracks = await client.tracks([track_id])
 
         if not tracks:
@@ -122,7 +122,7 @@ class YandexResolver(BaseResolver):
         url: str,
         album_id: str,
     ) -> MusicAddMessage:
-        client = await YandexClientRepo().get_async_music_client(1)
+        client = await self.client_repo.get_async_music_client(1)
         album = await client.albums_with_tracks(album_id)
 
         results = []
@@ -161,7 +161,7 @@ class YandexResolver(BaseResolver):
         user_id: str,
     ) -> MusicAddMessage:
         results = []
-        client = await YandexClientRepo().get_async_music_client(1)
+        client = await self.client_repo.get_async_music_client(1)
         if user_id and playlist_id.isdigit():
             playlist = await client.users_playlists(
                 playlist_id,
@@ -306,7 +306,7 @@ class YandexResolver(BaseResolver):
 
         if not track_ids:
             return []
-        client = await YandexClientRepo().get_async_music_client(1)
+        client = await self.client_repo.get_async_music_client(1)
         tracks = await client.tracks(track_ids)
 
         result_list = []
@@ -341,7 +341,7 @@ class YandexResolver(BaseResolver):
 
         track_id = match.group(1)
 
-        client = await YandexClientRepo().get_async_music_client(1)
+        client = await self.client_repo.get_async_music_client(1)
         tracks = await client.tracks([track_id])
 
         if not tracks:
