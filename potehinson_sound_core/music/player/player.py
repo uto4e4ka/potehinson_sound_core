@@ -1,4 +1,5 @@
 import asyncio
+from dataclasses import dataclass
 from typing import Awaitable, Callable, Dict, List, Optional, TypeVar, Type
 
 from loguru import logger
@@ -12,6 +13,21 @@ from potehinson_sound_core.core import Core
 TrackChangeCallback = Callable[[int, int, MusicAttributes], Awaitable[None]]
 TrackEndCallback = Callable[[int, int, MusicAttributes], Awaitable[None]]
 
+
+@dataclass
+class PlayerState:
+    """Снимок того, что сейчас играет на сервере, — всё, что нужно для карточки трека."""
+
+    guild_id: int
+    text_channel_id: int
+    track: MusicAttributes
+    is_paused: bool
+    is_shuffled: bool
+    has_previous: bool
+
+
+StateChangeCallback = Callable[[PlayerState], Awaitable[None]]
+
 T = TypeVar("T", bound=BaseStreamProvider)
 
 class MusicPlayer:
@@ -23,6 +39,10 @@ class MusicPlayer:
 
         self._track_change_listeners: List[TrackChangeCallback] = []
         self._track_end_listeners: List[TrackEndCallback] = []
+        self._state_change_listeners: List[StateChangeCallback] = []
+
+        # guild_id -> (text_channel_id, текущий трек)
+        self._now_playing: Dict[int, tuple[int, MusicAttributes]] = {}
         self._pause_events: Dict[int, asyncio.Event] = {}
 
         self._skipped_flags: Dict[int, bool] = {}
@@ -31,7 +51,6 @@ class MusicPlayer:
 
     def set_provider(self, guild_id: int, provider: BaseStreamProvider) -> None:
         self.providers[guild_id] = provider
-
     def remove_provider(self, guild_id: int) -> None:
         self.providers.pop(guild_id, None)
 
@@ -77,6 +96,7 @@ class MusicPlayer:
                 await self.core.pause_sound(guild_id=guild_id)
             except Exception as e:
                 logger.error(f"[MusicPlayer] Ошибка при паузе в core: {e}")
+            await self._notify_state_change(guild_id)
             return True
         return False
 
@@ -92,8 +112,22 @@ class MusicPlayer:
                 await self.core.resume_sound(guild_id=guild_id)
             except Exception as e:
                 logger.error(f"[MusicPlayer] Ошибка при возобновлении в core: {e}")
+            await self._notify_state_change(guild_id)
             return True
         return False
+
+    def is_paused(self, guild_id: int) -> bool:
+        return not self._get_pause_event(guild_id).is_set()
+
+    async def toggle_shuffle(self, guild_id: int) -> bool:
+        """Переключает перемешивание очереди. Возвращает новое состояние."""
+        provider = self.providers.get(guild_id)
+        if provider is None or not hasattr(provider, "shuffle_queue"):
+            raise PlayingException("Не доступно в этом режиме.")
+
+        is_shuffled = provider.shuffle_queue()
+        await self._notify_state_change(guild_id)
+        return is_shuffled
 
     async def skip_track(self, guild_id: int) -> bool:
         task = self._player_tasks.get(guild_id)
@@ -153,6 +187,36 @@ class MusicPlayer:
 
     def on_track_end(self, callback: TrackEndCallback):
         self._track_end_listeners.append(callback)
+
+    def on_state_change(self, callback: StateChangeCallback):
+        """Пауза, продолжение, перемешивание — всё, что меняет карточку текущего трека."""
+        self._state_change_listeners.append(callback)
+
+    def get_state(self, guild_id: int) -> Optional[PlayerState]:
+        now_playing = self._now_playing.get(guild_id)
+        if now_playing is None:
+            return None
+
+        text_channel_id, track = now_playing
+        provider = self.providers.get(guild_id)
+        return PlayerState(
+            guild_id=guild_id,
+            text_channel_id=text_channel_id,
+            track=track,
+            is_paused=self.is_paused(guild_id),
+            is_shuffled=bool(getattr(provider, "is_shuffled", False)),
+            has_previous=bool(provider and provider.has_previous()),
+        )
+
+    async def _notify_state_change(self, guild_id: int):
+        state = self.get_state(guild_id)
+        if state is None:
+            return
+        for listener in self._state_change_listeners:
+            try:
+                await listener(state)
+            except Exception as e:
+                logger.error(f"[MusicPlayer] Ошибка в listener (state): {e}")
 
     async def _notify_track_change(
             self, guild_id: int, text_channel_id: int, item: MusicAttributes
@@ -258,6 +322,7 @@ class MusicPlayer:
                         loop.call_soon_threadsafe(finish_event.set)
 
                 try:
+                    self._now_playing[guild_id] = (text_channel_id, m_attr)
                     await self._notify_track_change(guild_id, text_channel_id, m_attr)
 
                     await self.core.play_sound(
@@ -280,5 +345,6 @@ class MusicPlayer:
             self._skipped_flags.pop(guild_id, None)
             self._previous_flags.pop(guild_id, None)
             self._pause_events.pop(guild_id, None)
+            self._now_playing.pop(guild_id, None)
             self.remove_provider(guild_id)
             logger.info(f"[MusicPlayer] Таска плеера завершена для guild={guild_id}")

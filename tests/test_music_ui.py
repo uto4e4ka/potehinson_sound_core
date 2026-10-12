@@ -134,3 +134,29 @@ async def test_card_buttons_and_shuffle_icon():
     assert rows[1].components[3].context == {"track_id": "a"}
     assert rows[0].components[0].label == "🔀"
     assert [c for c in shuffled.components if isinstance(c, ActionRow)][0].components[0].label == "↔️"
+
+
+def _buttons(container):
+    return {b.custom_id: b for c in container.components if isinstance(c, ActionRow) for b in c.components}
+
+
+async def test_card_reflects_pause_and_previous():
+    playing = _buttons(await get_music_container(track("a")))
+    paused = _buttons(await get_music_container(track("a"), paused=True, has_previous=False))
+
+    assert playing["music:pause"].label == "⏸"
+    assert playing["music:prev"].disabled is False
+    assert paused["music:pause"].label == "▶️"
+    assert paused["music:pause"].style.value == "success"
+    assert paused["music:prev"].disabled is True
+
+
+async def test_card_with_known_color_skips_download(monkeypatch):
+    async def must_not_download(url):
+        raise AssertionError("обложка не должна скачиваться")
+
+    monkeypatch.setattr("potehinson_sound_core.music.components.extract_dominant_color", must_not_download)
+
+    container = await get_music_container(track("a"), accent_color=0xABCDEF)
+
+    assert container.accent_color == 0xABCDEF

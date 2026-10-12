@@ -91,8 +91,8 @@ class MusicCommands:
         )
     )
     async def shuffle(self, command: ExecutedCommand) -> ExecutedCommandResponse:
-        provider = self.get_provider(command.guild.id)
-        is_shuffled = provider.shuffle_queue()
+        self.get_provider(command.guild.id)   # создаёт очередь, если её ещё нет
+        is_shuffled = await self.player.toggle_shuffle(command.guild.id)
 
         if is_shuffled:
             return ExecutedCommandResponse(message="🔀 Случайное воспроизведение включено", is_final=True)

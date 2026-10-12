@@ -16,6 +16,7 @@ from potehinson_sound_core.music.track_messages import TrackMessageService
 from potehinson_sound_core.music.yandex.client import YandexClientRepo
 from potehinson_sound_core.music.yandex.resolver import YandexResolver
 from potehinson_sound_core.music.yandex.wave_commands import YandexRadioCommands
+from potehinson_sound_core.panel_pages import register_panel_pages
 from potehinson_sound_core.settings import Settings
 from potehinson_sound_core.tts.commands import TTSCommands
 
@@ -43,6 +44,7 @@ def create_plugin(settings: Settings, nats: NatsClient | None = None) -> Plugin:
     track_messages = TrackMessageService(plugin.discord, player)
     player.on_track_change(track_messages.on_music_change)
     player.on_track_end(track_messages.on_music_end)
+    player.on_state_change(track_messages.on_state_change)
 
     plugin.register(
         GreetingCommands(greetings),
@@ -52,4 +54,5 @@ def create_plugin(settings: Settings, nats: NatsClient | None = None) -> Plugin:
         ButtonControl(player, yandex),
     )
     plugin.add_lifespan(UserInteraction(core, plugin.nats, settings.greeting_enabled, greetings))
+    register_panel_pages(plugin, core, player, greetings)
     return plugin

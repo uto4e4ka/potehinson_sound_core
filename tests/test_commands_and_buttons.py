@@ -2,18 +2,19 @@
 from urllib.parse import parse_qs, urlparse
 
 import pytest
+from potehinsonnet.discord_provider import DiscordProvider
 
-from potehinson_sound_core.music.commands import MusicCommands
-from potehinson_sound_core.tts.commands import TTSCommands
-from potehinson_sound_core.music.yandex.wave_commands import YandexRadioCommands
+from potehinson_sound_core.exceptions import PlayingException
 from potehinson_sound_core.music.buttons import ButtonControl
+from potehinson_sound_core.music.commands import MusicCommands
 from potehinson_sound_core.music.fetcher import MusicFetcher
 from potehinson_sound_core.music.player.player import MusicPlayer
 from potehinson_sound_core.music.player.queue import QueueStreamProvider
 from potehinson_sound_core.music.player.radio import RadioStreamProvider
 from potehinson_sound_core.music.resolvers.tts import TtsResolver
 from potehinson_sound_core.music.track_messages import TrackMessageService
-from potehinsonnet.discord_provider import DiscordProvider
+from potehinson_sound_core.music.yandex.wave_commands import YandexRadioCommands
+from potehinson_sound_core.tts.commands import TTSCommands
 from tests.conftest import GUILD, TEXT, VOICE, clicked, executed, track
 from tests.test_music_player import wait_finished, wait_until
 
@@ -139,7 +140,7 @@ def buttons(player) -> ButtonControl:
 
 
 async def test_shuffle_button(buttons, player, fetcher):
-    with pytest.raises(FileNotFoundError):
+    with pytest.raises(PlayingException):
         await buttons.shuffle(clicked("music:shuffle"))
 
     provider = player.get_or_create_provider(GUILD, QueueStreamProvider, music_fetcher=fetcher)
@@ -152,7 +153,7 @@ async def test_shuffle_button(buttons, player, fetcher):
 async def test_shuffle_button_not_available_for_radio(buttons, player):
     player.set_provider(GUILD, RadioStreamProvider(radio=None))
 
-    with pytest.raises(FileNotFoundError):
+    with pytest.raises(PlayingException):
         await buttons.shuffle(clicked("music:shuffle"))
 
 
@@ -203,4 +204,4 @@ async def test_track_message_send_error_is_swallowed(nats, player):
 
     await service.on_music_change(GUILD, TEXT, track("a"))
 
-    assert service._active_track_messages == {}
+    assert service._cards == {}

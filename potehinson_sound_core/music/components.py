@@ -11,11 +11,25 @@ from potehinson_sound_core.music.embeds import extract_dominant_color, format_du
 from potehinson_sound_core.music.models import MusicAttributes, PlayingType
 
 
+_COMPUTE = object()
+
+
 async def get_music_container(
         attr: MusicAttributes,
         *,
-        shuffle:bool = False,
-                              ) -> Container:
+        shuffle: bool = False,
+        paused: bool = False,
+        has_previous: bool = True,
+        accent_color: int | None | object = _COMPUTE,
+) -> Container:
+    """Карточка "Сейчас играет".
+
+    accent_color — цвет, уже посчитанный по обложке. Передавайте его при обновлении
+    карточки, чтобы не скачивать обложку на каждое нажатие кнопки.
+    """
+    if accent_color is _COMPUTE:
+        accent_color = await extract_dominant_color(attr.music.icon_url)
+
     name = attr.music.name or 'Unknown'
     title = f"[{name}]({attr.music.url})" if attr.music.url else name
     header = (
@@ -38,9 +52,7 @@ async def get_music_container(
         header_component = TextDisplay(content=header)
 
     return Container(
-        accent_color=await extract_dominant_color(
-            attr.music.icon_url
-        ),
+        accent_color=accent_color,
         components=[
             header_component,
             TextDisplay(
@@ -75,12 +87,13 @@ async def get_music_container(
                         label="⏮",
                         custom_id="music:prev",
                         style=ComponentButtonStyle.SECONDARY,
+                        disabled=not has_previous,
                     ),
                     ComponentButton(
-                        label="⏸",
+                        # Одна кнопка: пауза или продолжение — по текущему состоянию
+                        label="▶️" if paused else "⏸",
                         custom_id="music:pause",
-                        style=ComponentButtonStyle.SECONDARY,
-
+                        style=ComponentButtonStyle.SUCCESS if paused else ComponentButtonStyle.SECONDARY,
                     ),
                     ComponentButton(
                         label="⏭",

@@ -14,7 +14,6 @@ class GreetingScenario(BaseModel):
 
 class GreetingRepository:
     def __init__(self, json_path: str, default_sound_url: str = "sounds/audio.mp3"):
-        print(json_path)
         self.json_path = Path(json_path)
         self.default_sound_url = default_sound_url
 
@@ -53,7 +52,15 @@ class GreetingRepository:
             json.dump(data, f, indent=2, ensure_ascii=False)
         return scenario
 
-    def _load_data(self) -> dict[str, str]:
+    def list_greetings(self, guild_id: int) -> list[GreetingScenario]:
+        """Все настроенные приветствия сервера."""
+        return [
+            GreetingScenario.model_validate(raw)
+            for raw in self._load_data().values()
+            if raw.get("guild_id") == guild_id
+        ]
+
+    def _load_data(self) -> dict[str, dict]:
         if not self.json_path.exists():
             return {}
         try:

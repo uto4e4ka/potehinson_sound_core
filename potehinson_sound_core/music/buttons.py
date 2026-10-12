@@ -2,6 +2,7 @@ from loguru import logger
 from potehinsonnet.net_models.discord_models import ExecutedComponent, ExecutedComponentResponse
 from potehinsonnet.setup.button_registrator import button, ButtonRegistrator
 
+from potehinson_sound_core.exceptions import PlayingException
 from potehinson_sound_core.music.yandex.client import YandexClientRepo
 from potehinson_sound_core.music.player import player as music_player
 from potehinson_sound_core.music.player.player import MusicPlayer
@@ -19,8 +20,16 @@ class ButtonControl:
 
     @button("music:pause")
     async def pause(self,arg:ExecutedComponent):
+        """Одна кнопка на карточке: ставит на паузу или продолжает."""
         guild_id = arg.guild.id
-        await self.music_player.pause_track(guild_id)
+        if not self.music_player.is_paused(guild_id):
+            await self.music_player.pause_track(guild_id)
+            return None
+
+        if not arg.user.voice_channel:
+            raise PlayingException("Нужно находиться в голосовом канале")
+        await self.music_player.resume_track(guild_id, arg.user.voice_channel.id)
+        return None
 
     @button("music:skip")
     async def skip(self,arg:ExecutedComponent):
@@ -49,14 +58,7 @@ class ButtonControl:
 
     @button("music:shuffle")
     async def shuffle(self,arg:ExecutedComponent):
-        guild_id = arg.guild.id
-        provider = self.music_player.providers.get(guild_id)
-        if not provider:
-            raise FileNotFoundError("Не доступно в этом режиме.")
-        if not hasattr(provider, "shuffle_queue"):
-            raise FileNotFoundError("Не доступно в этом режиме.")
-
-        is_shuffled = provider.shuffle_queue()
+        is_shuffled = await self.music_player.toggle_shuffle(arg.guild.id)
 
         return ExecutedComponentResponse(
             message=(

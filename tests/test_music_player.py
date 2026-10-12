@@ -213,3 +213,50 @@ async def test_waits_while_disconnected(player, fetcher, discord_bot):
     await wait_until(lambda: discord_bot.played)
 
     await player.stop_player(GUILD)
+
+
+async def test_state_events(player, fetcher, discord_bot):
+    states = []
+
+    async def on_state(state):
+        states.append((state.track.music.name, state.is_paused, state.is_shuffled, state.has_previous))
+
+    player.on_state_change(on_state)
+    discord_bot.auto_end = False
+    await queue_of(player, fetcher, "a", "b")
+    await player.add_to_channel_player(VOICE, GUILD, TEXT)
+    await wait_until(lambda: discord_bot.current_track)
+
+    await player.pause_track(GUILD)
+    await player.resume_track(GUILD, VOICE)
+    await player.toggle_shuffle(GUILD)
+
+    assert states == [("a", True, False, False), ("a", False, False, False), ("a", False, True, False)]
+    assert player.get_state(GUILD).text_channel_id == TEXT
+
+    await player.stop_player(GUILD)
+    assert player.get_state(GUILD) is None
+
+
+async def test_no_state_events_when_nothing_plays(player, fetcher):
+    states = []
+
+    async def on_state(state):
+        states.append(state)
+
+    player.on_state_change(on_state)
+    await queue_of(player, fetcher, "a")
+
+    await player.pause_track(GUILD)
+    await player.toggle_shuffle(GUILD)
+
+    assert states == []
+
+
+async def test_toggle_shuffle_needs_queue(player):
+    player.set_provider(GUILD, RadioStreamProvider(FakeRadio()))
+
+    with pytest.raises(PlayingException):
+        await player.toggle_shuffle(GUILD)       # у волны нет перемешивания
+    with pytest.raises(PlayingException):
+        await player.toggle_shuffle(GUILD + 1)   # на сервере ничего не играет

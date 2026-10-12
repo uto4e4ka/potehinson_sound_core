@@ -32,6 +32,7 @@ def no_cover_downloads(monkeypatch):
         return None
 
     monkeypatch.setattr("potehinson_sound_core.music.components.extract_dominant_color", no_color)
+    monkeypatch.setattr("potehinson_sound_core.music.track_messages.extract_dominant_color", no_color)
 
 
 @pytest.fixture
@@ -68,6 +69,7 @@ class FakeDiscordBot:
     controls: list[str] = field(default_factory=list)
     sent: list[dict] = field(default_factory=list)
     removed: list[dict] = field(default_factory=list)
+    edited: list[dict] = field(default_factory=list)
     current_track: str | None = None
     _ids: itertools.count = field(default_factory=lambda: itertools.count(1000))
 
@@ -79,6 +81,7 @@ class FakeDiscordBot:
             "discord.interaction.channel.voice.actions.control": self.control,
             "discord.message.send": self.send,
             "discord.message.remove": self.remove,
+            "discord.message.edit": self.edit,
         }
         for subject, handler in subs.items():
             await self.nats.subscribe(subject, handler)
@@ -132,6 +135,10 @@ class FakeDiscordBot:
 
     async def remove(self, body):
         self.removed.append(body)
+
+    async def edit(self, body):
+        self.edited.append(body)
+        return {"channel_id": body["message"]["channel_id"], "message_id": body["message_id"]}
 
 
 @pytest.fixture
@@ -197,10 +204,10 @@ def executed(*, in_voice: bool = True, args: dict | None = None, user_id: int = 
     )
 
 
-def clicked(custom_id: str, context: dict | None = None) -> ExecutedComponent:
+def clicked(custom_id: str, context: dict | None = None, in_voice: bool = False) -> ExecutedComponent:
     return ExecutedComponent(
         id=custom_id,
-        user=User(id=1, name="user"),
+        user=User(id=1, name="user", voice_channel=Channel(id=VOICE, name="voice") if in_voice else None),
         guild=Guild(id=GUILD, name="guild"),
         channel=Channel(id=TEXT, name="text"),
         task_id="T1",
