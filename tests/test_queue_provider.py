@@ -1,6 +1,6 @@
 import pytest
 
-from integrations.music.player.providers.queue_stream_provider import QueueStreamProvider
+from potehinson_sound_core.music.player.queue import QueueStreamProvider
 from tests.conftest import FakeFetcher
 
 

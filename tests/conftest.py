@@ -5,8 +5,8 @@ from dataclasses import dataclass, field
 import pytest
 from potehinsonnet.net_models.discord_models import Channel, ExecutedCommand, ExecutedComponent, Guild, User
 
-from integrations.music.music_embeds import AddingType, MusicAddMessage
-from integrations.music.music_models import (
+from potehinson_sound_core.music.embeds import AddingType, MusicAddMessage
+from potehinson_sound_core.music.models import (
     AudioQuality,
     Music,
     MusicAttributes,
@@ -31,7 +31,7 @@ def no_cover_downloads(monkeypatch):
     async def no_color(url):
         return None
 
-    monkeypatch.setattr("integrations.music.music_components.extract_dominant_color", no_color)
+    monkeypatch.setattr("potehinson_sound_core.music.components.extract_dominant_color", no_color)
 
 
 @pytest.fixture

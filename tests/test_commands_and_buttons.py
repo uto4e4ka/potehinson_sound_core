@@ -3,16 +3,16 @@ from urllib.parse import parse_qs, urlparse
 
 import pytest
 
-from commands.music_commands import MusicCommands
-from commands.tts_commands import TTSCommands
-from commands.yandex_commands import YandexRadioCommands
-from control.button_control import ButtonControl
-from integrations.music.music_fetcher import MusicFetcher
-from integrations.music.player.music_player import MusicPlayer
-from integrations.music.player.providers.queue_stream_provider import QueueStreamProvider
-from integrations.music.player.providers.radio_stream_provider import RadioStreamProvider
-from integrations.music.resolvers.tts.tts_resolver import TtsResolver
-from integrations.music.track_message_service import TrackMessageService
+from potehinson_sound_core.music.commands import MusicCommands
+from potehinson_sound_core.tts.commands import TTSCommands
+from potehinson_sound_core.music.yandex.wave_commands import YandexRadioCommands
+from potehinson_sound_core.music.buttons import ButtonControl
+from potehinson_sound_core.music.fetcher import MusicFetcher
+from potehinson_sound_core.music.player.player import MusicPlayer
+from potehinson_sound_core.music.player.queue import QueueStreamProvider
+from potehinson_sound_core.music.player.radio import RadioStreamProvider
+from potehinson_sound_core.music.resolvers.tts import TtsResolver
+from potehinson_sound_core.music.track_messages import TrackMessageService
 from potehinsonnet.discord_provider import DiscordProvider
 from tests.conftest import GUILD, TEXT, VOICE, clicked, executed, track
 from tests.test_music_player import wait_finished, wait_until

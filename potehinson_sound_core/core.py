@@ -8,8 +8,8 @@ from potehinsonnet.net_models.discord_models import InteractionType, VoiceChanne
 from potehinsonnet.net import NatsClient
 import uuid
 
-from exeptions.BotBeasyException import BotBeasyException
-from exeptions.playing_execptions import PlayingException
+from potehinson_sound_core.exceptions import BotBusyException
+from potehinson_sound_core.exceptions import PlayingException
 
 CONNECTED = VoiceChannelUserConnectionType.CONNECTED
 DISCONNECTED = VoiceChannelUserConnectionType.DISCONNECTED
@@ -48,7 +48,7 @@ class Core:
                 if force:
                     return await self.connect(channel_id,guild_id)
                 else:
-                    raise BotBeasyException()
+                    raise BotBusyException()
         return connection
 
 

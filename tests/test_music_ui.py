@@ -2,8 +2,8 @@
 import pytest
 from potehinsonnet.net_models.discord_models import ActionRow, ComponentThumbnail, Section, TextDisplay
 
-from integrations.music.music_components import get_music_container
-from integrations.music.music_embeds import (
+from potehinson_sound_core.music.components import get_music_container
+from potehinson_sound_core.music.embeds import (
     AddingType,
     MusicAddMessage,
     extract_dominant_color,
@@ -11,8 +11,8 @@ from integrations.music.music_embeds import (
     get_add_embed,
     get_music_embed,
 )
-from integrations.music.music_models import AudioQuality, MusicSource, PlayingType
-from integrations.music.resolvers.tts.tts_resolver import TtsResolver
+from potehinson_sound_core.music.models import AudioQuality, MusicSource, PlayingType
+from potehinson_sound_core.music.resolvers.tts import TtsResolver
 from tests.conftest import track
 
 
@@ -83,7 +83,7 @@ def test_add_embed_with_cover():
 
 
 async def test_music_embed(monkeypatch):
-    monkeypatch.setattr("integrations.music.music_embeds.extract_dominant_color", _no_color)
+    monkeypatch.setattr("potehinson_sound_core.music.embeds.extract_dominant_color", _no_color)
     embed = await get_music_embed(track("a"))
 
     assert embed.color == 0xFF69B4
@@ -99,7 +99,7 @@ def no_network_colors(monkeypatch):
     async def color(url):
         return 0x112233 if url else None
 
-    monkeypatch.setattr("integrations.music.music_components.extract_dominant_color", color)
+    monkeypatch.setattr("potehinson_sound_core.music.components.extract_dominant_color", color)
 
 
 async def test_card_with_cover_uses_section_with_thumbnail():

@@ -2,10 +2,10 @@ import asyncio
 
 import pytest
 
-from exeptions.playing_execptions import PlayingException
-from integrations.music.player.music_player import MusicPlayer
-from integrations.music.player.providers.queue_stream_provider import QueueStreamProvider
-from integrations.music.player.providers.radio_stream_provider import RadioStreamProvider
+from potehinson_sound_core.exceptions import PlayingException
+from potehinson_sound_core.music.player.player import MusicPlayer
+from potehinson_sound_core.music.player.queue import QueueStreamProvider
+from potehinson_sound_core.music.player.radio import RadioStreamProvider
 from tests.conftest import GUILD, TEXT, VOICE, track
 
 pytestmark = pytest.mark.usefixtures("fast_sleep")

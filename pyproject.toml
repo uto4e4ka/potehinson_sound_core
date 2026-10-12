@@ -37,5 +37,5 @@ testpaths = ["tests"]
 pythonpath = ["."]
 
 [tool.coverage.run]
-source = ["."]
+source = ["potehinson_sound_core"]
 omit = [".venv/*", "tests/*"]

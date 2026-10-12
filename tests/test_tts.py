@@ -7,9 +7,9 @@ from edge_tts.exceptions import NoAudioReceived
 from fastapi.testclient import TestClient
 from PIL import Image
 
-from integrations.music import music_embeds
-from integrations.tts.edge_tts_generator import TTSService
-from integrations.tts.tts_server import create_app
+from potehinson_sound_core.music import embeds as music_embeds
+from potehinson_sound_core.tts.generator import TTSService
+from potehinson_sound_core.tts.server import create_app
 
 pytestmark = pytest.mark.usefixtures("fast_sleep")
 

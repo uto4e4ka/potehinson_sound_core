@@ -1,7 +1,8 @@
 """Сборка плагина целиком (create_plugin): регистрация команд и кнопок через фейковый бот."""
 import pytest
 
-from potehinson_sound_core.app import Settings, create_plugin
+from potehinson_sound_core.app import create_plugin
+from potehinson_sound_core.settings import PROJECT_ROOT, Settings
 from tests.conftest import clicked, executed
 
 EXPECTED_COMMANDS = {
@@ -101,3 +102,11 @@ def test_defaults_without_env(monkeypatch):
         monkeypatch.delenv(name, raising=False)
 
     assert Settings.from_env() == Settings()
+
+
+def test_greeting_data_path_does_not_depend_on_cwd(monkeypatch, tmp_path):
+    monkeypatch.delenv("GREETING_JSON_PATH", raising=False)
+    monkeypatch.chdir(tmp_path)
+
+    assert Settings.from_env().greeting_json_path == str(PROJECT_ROOT / "data" / "greeting.json")
+    assert (PROJECT_ROOT / "data" / "greeting.json").exists()

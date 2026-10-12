@@ -15,3 +15,8 @@ venv/
 __pycache__/
 *.pyc
 
+
+# Логи и отчёты тестов
+*.log
+.coverage
+.pytest_cache/

@@ -4,13 +4,13 @@ from types import SimpleNamespace
 
 import pytest
 
-from integrations.music.music_embeds import AddingType
-from integrations.music.music_fetcher import MusicFetcher
-from integrations.music.music_models import MusicSource
-from integrations.music.radios.yandex.utils import get_formatted_track_id, get_played_time, get_time
-from integrations.music.resolvers.resolver import BaseResolver
-from integrations.music.resolvers.tts.tts_resolver import TtsResolver
-from integrations.music.resolvers.yandex.utils import _get_artists_str, _parse_url, get_track_page_url
+from potehinson_sound_core.music.embeds import AddingType
+from potehinson_sound_core.music.fetcher import MusicFetcher
+from potehinson_sound_core.music.models import MusicSource
+from potehinson_sound_core.music.yandex.utils import get_formatted_track_id, get_played_time, get_time
+from potehinson_sound_core.music.resolvers.base import BaseResolver
+from potehinson_sound_core.music.resolvers.tts import TtsResolver
+from potehinson_sound_core.music.yandex.utils import _get_artists_str, _parse_url, get_track_page_url
 from potehinson_sound_core.utils import retry
 from tests.conftest import track
 

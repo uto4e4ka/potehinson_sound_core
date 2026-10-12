@@ -3,8 +3,7 @@ import asyncio
 import pytest
 from potehinsonnet.net_models.discord_models import InteractionType
 
-from exeptions.BotBeasyException import BotBeasyException
-from exeptions.playing_execptions import PlayingException
+from potehinson_sound_core.exceptions import BotBusyException, PlayingException
 from tests.conftest import GUILD, VOICE
 
 
@@ -25,7 +24,7 @@ async def test_check_and_connect_keeps_same_channel(core, discord_bot):
 async def test_check_and_connect_busy_in_other_channel(core, discord_bot):
     discord_bot.connected_channel = 999
 
-    with pytest.raises(BotBeasyException):
+    with pytest.raises(BotBusyException):
         await core.check_and_connect(VOICE, GUILD, force=False)
 
     status = await core.check_and_connect(VOICE, GUILD, force=True)

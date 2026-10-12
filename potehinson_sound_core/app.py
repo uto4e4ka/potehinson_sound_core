@@ -1,25 +1,23 @@
 """Сборка плагина: все объекты создаются здесь, в одном месте и в явном порядке."""
-import os
-from dataclasses import dataclass
-
 from potehinsonnet import Plugin
 from potehinsonnet.net import NatsClient
 from potehinsonnet.net_models.system_models import Service
 
-from commands.greeteng_commands import GreetingCommands
-from commands.music_commands import MusicCommands
-from commands.tts_commands import TTSCommands
-from commands.yandex_commands import YandexRadioCommands
-from control.button_control import ButtonControl
-from integrations.music.clients.yandex_client import YandexClientRepo
-from integrations.music.music_fetcher import MusicFetcher
-from integrations.music.player.music_player import MusicPlayer
-from integrations.music.resolvers.tts.tts_resolver import TtsResolver
-from integrations.music.resolvers.yandex.yandex_resolver import YandexResolver
-from integrations.music.track_message_service import TrackMessageService
 from potehinson_sound_core.core import Core
-from potehinson_sound_core.user_interaction import UserInteraction
-from scenaries.greeting_repository import GreetingRepository
+from potehinson_sound_core.greetings.commands import GreetingCommands
+from potehinson_sound_core.greetings.listener import UserInteraction
+from potehinson_sound_core.greetings.repository import GreetingRepository
+from potehinson_sound_core.music.buttons import ButtonControl
+from potehinson_sound_core.music.commands import MusicCommands
+from potehinson_sound_core.music.fetcher import MusicFetcher
+from potehinson_sound_core.music.player.player import MusicPlayer
+from potehinson_sound_core.music.resolvers.tts import TtsResolver
+from potehinson_sound_core.music.track_messages import TrackMessageService
+from potehinson_sound_core.music.yandex.client import YandexClientRepo
+from potehinson_sound_core.music.yandex.resolver import YandexResolver
+from potehinson_sound_core.music.yandex.wave_commands import YandexRadioCommands
+from potehinson_sound_core.settings import Settings
+from potehinson_sound_core.tts.commands import TTSCommands
 
 SERVICE = Service(
     type="plugin",
@@ -30,35 +28,6 @@ SERVICE = Service(
     version="0.0.1",
     site="https://potehinson-sound-core",
 )
-
-
-def _env_bool(name: str, default: bool = False) -> bool:
-    value = os.getenv(name)
-    if value is None:
-        return default
-    return value.strip().lower() in ("1", "true", "yes", "on")
-
-
-@dataclass
-class Settings:
-    nats_url: str = "nats://localhost:4222"
-    greeting_enabled: bool = False
-    greeting_sound: str = "sounds/audio.mp3"
-    greeting_json_path: str = "../data/scenaries/greeting.json"
-    tts_host: str = "0.0.0.0"
-    tts_port: int = 8000
-
-    @classmethod
-    def from_env(cls) -> "Settings":
-        defaults = cls()
-        return cls(
-            nats_url=os.getenv("NATS_URL", defaults.nats_url),
-            greeting_enabled=_env_bool("GREETING"),
-            greeting_sound=os.getenv("GREETING_SOUND") or defaults.greeting_sound,
-            greeting_json_path=os.getenv("GREETING_JSON_PATH", defaults.greeting_json_path),
-            tts_host=os.getenv("TTS_HOST", defaults.tts_host),
-            tts_port=int(os.getenv("TTS_PORT", defaults.tts_port)),
-        )
 
 
 def create_plugin(settings: Settings, nats: NatsClient | None = None) -> Plugin:

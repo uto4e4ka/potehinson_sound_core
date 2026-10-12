@@ -4,9 +4,9 @@ import asyncio
 import pytest
 from potehinsonnet.net_models.discord_models import Channel, Guild, User, VoiceChannelUserConnectionEvent
 
-from commands.greeteng_commands import GreetingCommands
-from potehinson_sound_core.user_interaction import UserInteraction
-from scenaries.greeting_repository import GreetingRepository, GreetingScenario
+from potehinson_sound_core.greetings.commands import GreetingCommands
+from potehinson_sound_core.greetings.listener import UserInteraction
+from potehinson_sound_core.greetings.repository import GreetingRepository, GreetingScenario
 from tests.conftest import GUILD, VOICE, executed
 
 

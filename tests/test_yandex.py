@@ -3,11 +3,11 @@ from types import SimpleNamespace
 
 import pytest
 
-from integrations.music.clients.yandex_client import YandexClientRepo
-from integrations.music.music_embeds import AddingType
-from integrations.music.music_models import AudioQuality, PlayingType
-from integrations.music.radios.yandex.yandex_radio import YandexWave
-from integrations.music.resolvers.yandex.yandex_resolver import YandexResolver
+from potehinson_sound_core.music.yandex.client import YandexClientRepo
+from potehinson_sound_core.music.embeds import AddingType
+from potehinson_sound_core.music.models import AudioQuality, PlayingType
+from potehinson_sound_core.music.yandex.wave import YandexWave
+from potehinson_sound_core.music.yandex.resolver import YandexResolver
 
 pytestmark = pytest.mark.usefixtures("fast_sleep")
 
@@ -217,7 +217,7 @@ async def test_client_repo_caches_per_user(monkeypatch):
         async def init(self):
             return self
 
-    monkeypatch.setattr("integrations.music.clients.yandex_client.ClientAsync", FakeClientAsync)
+    monkeypatch.setattr("potehinson_sound_core.music.yandex.client.ClientAsync", FakeClientAsync)
     monkeypatch.setenv("YANDEX_TOKEN", "secret")
     repo = YandexClientRepo()
 
