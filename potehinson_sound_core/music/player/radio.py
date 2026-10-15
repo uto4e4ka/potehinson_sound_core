@@ -1,4 +1,3 @@
-from idlelib.window import add_windows_to_menu
 from typing import Optional
 
 from potehinson_sound_core.music.models import MusicAttributes

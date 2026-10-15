@@ -2,7 +2,7 @@
 name = "potehinson_sound_core"
 label = "[🔊] Potehinson Sound Core"
 description = "Воспроизведение, управление звуками. Приветствие и ивенты."
-version = "0.2.0"
+version = "0.2.1"
 author = "Uto4ka404"
 site = "https://potehinson-sound-core"
 

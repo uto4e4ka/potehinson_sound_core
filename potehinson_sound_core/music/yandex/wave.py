@@ -1,6 +1,7 @@
 import time
 from typing import Optional, List
-from venv import logger
+
+from loguru import logger
 
 from yandex_music import ClientAsync, RotorSession, Track, SessionFeedback, SessionEvent
 
