@@ -20,3 +20,6 @@ __pycache__/
 *.log
 .coverage
 .pytest_cache/
+
+# Настройки плагина при разработке (у хоста — свои)
+settings.json

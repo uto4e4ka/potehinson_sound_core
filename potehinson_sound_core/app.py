@@ -1,6 +1,7 @@
 """Сборка плагина: все объекты создаются здесь, в одном месте и в явном порядке."""
 from potehinsonnet import Plugin
 from potehinsonnet.net import NatsClient
+from potehinsonnet.manifest import load_manifest
 from potehinsonnet.net_models.system_models import Service
 
 from potehinson_sound_core.core import Core
@@ -17,22 +18,14 @@ from potehinson_sound_core.music.yandex.client import YandexClientRepo
 from potehinson_sound_core.music.yandex.resolver import YandexResolver
 from potehinson_sound_core.music.yandex.wave_commands import YandexRadioCommands
 from potehinson_sound_core.panel_pages import register_panel_pages
-from potehinson_sound_core.settings import Settings
+from potehinson_sound_core.settings import PROJECT_ROOT, Settings
 from potehinson_sound_core.tts.commands import TTSCommands
 
-SERVICE = Service(
-    type="plugin",
-    name="potehinson_sound_core",
-    label="[🔊] Potehinson Sound Core ",
-    description="Воспроизведение, управление звуками.\nПриветствие и ивенты.",
-    author="Uto4ka404",
-    version="0.0.1",
-    site="https://potehinson-sound-core",
-)
 
 
-def create_plugin(settings: Settings, nats: NatsClient | None = None) -> Plugin:
-    plugin = Plugin(SERVICE, nats_url=settings.nats_url, nats=nats)
+def create_plugin(settings: Settings, nats: NatsClient | None = None, service: Service | None = None) -> Plugin:
+    """Собрать плагин. Имя, версия и описание — из plugin.toml (если service не передали)."""
+    plugin = Plugin(service or load_manifest(PROJECT_ROOT).service(), nats_url=settings.nats_url, nats=nats)
 
     core = Core(plugin.nats)
     player = MusicPlayer(core)

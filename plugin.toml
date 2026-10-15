@@ -1,0 +1,34 @@
+[plugin]
+name = "potehinson_sound_core"
+label = "[🔊] Potehinson Sound Core"
+description = "Воспроизведение, управление звуками. Приветствие и ивенты."
+version = "0.2.0"
+author = "Uto4ka404"
+site = "https://potehinson-sound-core"
+
+[runtime]
+entry = "potehinson_sound_core.main:create_plugin"
+python = ">=3.14"
+potehinsonnet = ">=0.10,<0.11"
+
+[permissions]
+# Музыка и приветствия в голосовых; карточка «Сейчас играет» — сообщением, которое обновляется
+discord = ["voice", "send_message", "edit_message"]
+commands = true
+panel = true
+
+[settings.greeting]
+label = "Приветствовать заходящих в голосовой"
+type = "bool"
+
+[settings.greeting_sound]
+label = "Звук приветствия по умолчанию"
+description = "Путь у бота (sounds/audio.mp3) или ссылка"
+
+[settings.yandex_token]
+label = "Токен Яндекс Музыки"
+secret = true
+
+[settings.tts_port]
+label = "Порт TTS-сервера"
+type = "number"
