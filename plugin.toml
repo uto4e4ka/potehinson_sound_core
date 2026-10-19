@@ -2,14 +2,14 @@
 name = "potehinson_sound_core"
 label = "[🔊] Potehinson Sound Core"
 description = "Воспроизведение, управление звуками. Приветствие и ивенты."
-version = "0.2.2"
+version = "0.2.3"
 author = "Uto4ka404"
 site = "https://potehinson-sound-core"
 
 [runtime]
 entry = "potehinson_sound_core.main:create_plugin"
 python = ">=3.14"
-potehinsonnet = ">=0.10,<0.12"
+potehinsonnet = ">=0.10,<0.13"
 
 [permissions]
 # Музыка и приветствия в голосовых; карточка «Сейчас играет» — сообщением, которое обновляется
