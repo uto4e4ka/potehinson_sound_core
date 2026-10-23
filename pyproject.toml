@@ -1,6 +1,6 @@
 [project]
 name = "potehinson_sound_core"
-version = "0.1.0"
+version = "0.2.4"
 description = ""
 authors = [
     {name = "Uto4ka", email = "alezhestkov@gmail.com"}

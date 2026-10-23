@@ -1,6 +1,5 @@
 import json
 from pathlib import Path
-from typing import Optional
 from pydantic import BaseModel
 
 
@@ -9,7 +8,6 @@ class GreetingScenario(BaseModel):
     guild_id: int
     sound_url: str
     disabled: bool = False
-    cooldown: Optional[int] = None
 
 
 class GreetingRepository:
@@ -23,7 +21,8 @@ class GreetingRepository:
         return GreetingScenario(
             user_id=user_id,
             guild_id=guild_id,
-            sound_url=self.default_sound_url
+            sound_url=self.default_sound_url,
+            disabled=False,
         )
     def get_greeting(self, guild_id: int, user_id: int) -> GreetingScenario:
         """Получает сценарий приветствия для пользователя в конкретной гильдии."""
